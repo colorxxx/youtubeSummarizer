@@ -1,0 +1,1 @@
+ALTER TABLE `userSettings` ADD `videoCount` int DEFAULT 3 NOT NULL;

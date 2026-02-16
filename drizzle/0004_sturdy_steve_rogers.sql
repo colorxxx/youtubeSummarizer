@@ -1,0 +1,1 @@
+ALTER TABLE `subscriptions` ADD `videoCount` int DEFAULT 3;
