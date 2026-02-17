@@ -25,7 +25,7 @@ export function registerOAuthRoutes(app: Express) {
         code,
         client_id: ENV.googleClientId,
         client_secret: ENV.googleClientSecret,
-        redirect_uri: `${req.protocol}://${req.get("host")}/api/oauth/callback`,
+        redirect_uri: `${req.protocol}://${req.get("host")?.replace("127.0.0.1", "localhost")}/api/oauth/callback`,
         grant_type: "authorization_code",
       });
 
@@ -98,7 +98,8 @@ export function registerOAuthRoutes(app: Express) {
       res.redirect(302, "/");
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
-      res.status(500).json({ error: "OAuth callback failed" });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: "OAuth callback failed", detail: errorMessage });
     }
   });
 }
