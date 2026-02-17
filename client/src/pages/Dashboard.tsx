@@ -9,10 +9,12 @@ import { Streamdown } from "streamdown";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { formatDuration } from "@/lib/utils";
+import { useBackgroundTasks } from "@/hooks/useBackgroundTasks";
 
 export default function Dashboard() {
   const { data: channelData, isLoading, refetch } = trpc.dashboard.channelSummaries.useQuery();
   const [openChannels, setOpenChannels] = useState<Set<string>>(new Set());
+  const { getTaskForChannel } = useBackgroundTasks();
   const deleteMutation = trpc.summaries.delete.useMutation({
     onSuccess: () => {
       toast.success("요약이 삭제되었습니다");
@@ -130,22 +132,35 @@ export default function Dashboard() {
                           {item.summaries.length} video{item.summaries.length > 1 ? "s" : ""} summarized
                         </CardDescription>
                       </div>
-                      <button
-                        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-                        disabled={refreshingChannelId === item.channel.channelId}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRefreshingChannelId(item.channel.channelId);
-                          refreshChannelMutation.mutate({ channelId: item.channel.channelId, channelName: item.channel.channelName });
-                        }}
-                        title="채널 새로고침"
-                      >
-                        {refreshingChannelId === item.channel.channelId ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" />
-                        )}
-                      </button>
+                      {(() => {
+                        const task = getTaskForChannel(item.channel.channelId);
+                        if (task) {
+                          return (
+                            <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full flex items-center gap-1 flex-shrink-0">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              {task.processedVideos}/{task.totalVideos}
+                            </span>
+                          );
+                        }
+                        return (
+                          <button
+                            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                            disabled={refreshingChannelId === item.channel.channelId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRefreshingChannelId(item.channel.channelId);
+                              refreshChannelMutation.mutate({ channelId: item.channel.channelId, channelName: item.channel.channelName });
+                            }}
+                            title="채널 새로고침"
+                          >
+                            {refreshingChannelId === item.channel.channelId ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </button>
+                        );
+                      })()}
                       <ChevronDown
                         className={`h-5 w-5 transition-transform flex-shrink-0 ${
                           openChannels.has(item.channel.channelId) ? "rotate-180" : ""
