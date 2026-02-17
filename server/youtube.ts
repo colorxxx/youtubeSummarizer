@@ -102,6 +102,7 @@ export async function getChannelDetails(channelId: string): Promise<YouTubeChann
 
 /**
  * Get recent videos from a channel
+ * Keeps fetching until we have maxResults videos that are over 3 minutes
  */
 export async function getChannelVideos(
   channelId: string,
@@ -109,53 +110,79 @@ export async function getChannelVideos(
   publishedAfter?: Date
 ): Promise<YouTubeVideo[]> {
   try {
-    // First, search for videos from the channel
-    const searchParams: any = {
-      part: "snippet",
-      channelId,
-      type: "video",
-      order: "date",
-      maxResults,
-      key: getApiKey(),
-    };
+    const validVideos: YouTubeVideo[] = [];
+    let nextPageToken: string | undefined;
+    const maxIterations = 5; // 최대 5번까지 페이지네이션 (API 할당량 보호)
+    let iterations = 0;
 
-    if (publishedAfter) {
-      searchParams.publishedAfter = publishedAfter.toISOString();
-    }
+    while (validVideos.length < maxResults && iterations < maxIterations) {
+      iterations++;
 
-    const searchResponse = await axios.get(`${YOUTUBE_API_BASE}/search`, {
-      params: searchParams,
-    });
-
-    if (!searchResponse.data.items || searchResponse.data.items.length === 0) {
-      return [];
-    }
-
-    // Get video IDs
-    const videoIds = searchResponse.data.items.map((item: any) => item.id.videoId).join(",");
-
-    // Fetch video details including duration
-    const videosResponse = await axios.get(`${YOUTUBE_API_BASE}/videos`, {
-      params: {
-        part: "snippet,contentDetails",
-        id: videoIds,
+      // Search for videos from the channel
+      const searchParams: any = {
+        part: "snippet",
+        channelId,
+        type: "video",
+        order: "date",
+        maxResults: Math.min(maxResults * 2, 50), // 한 번에 더 많이 가져와서 필터링
         key: getApiKey(),
-      },
-    });
+      };
 
-    const videos: YouTubeVideo[] = videosResponse.data.items
-      .map((item: any) => ({
-        videoId: item.id,
-        channelId: item.snippet.channelId,
-        title: item.snippet.title,
-        description: item.snippet.description,
-        publishedAt: new Date(item.snippet.publishedAt),
-        thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || "",
-        duration: item.contentDetails.duration,
-      }))
-      .filter((v: YouTubeVideo) => parseDuration(v.duration) > 180); // 3분 미만 영상 제외
+      if (publishedAfter) {
+        searchParams.publishedAfter = publishedAfter.toISOString();
+      }
 
-    return videos;
+      if (nextPageToken) {
+        searchParams.pageToken = nextPageToken;
+      }
+
+      const searchResponse = await axios.get(`${YOUTUBE_API_BASE}/search`, {
+        params: searchParams,
+      });
+
+      if (!searchResponse.data.items || searchResponse.data.items.length === 0) {
+        break; // 더 이상 영상이 없음
+      }
+
+      nextPageToken = searchResponse.data.nextPageToken;
+
+      // Get video IDs
+      const videoIds = searchResponse.data.items.map((item: any) => item.id.videoId).join(",");
+
+      // Fetch video details including duration
+      const videosResponse = await axios.get(`${YOUTUBE_API_BASE}/videos`, {
+        params: {
+          part: "snippet,contentDetails",
+          id: videoIds,
+          key: getApiKey(),
+        },
+      });
+
+      const fetchedVideos: YouTubeVideo[] = videosResponse.data.items
+        .map((item: any) => ({
+          videoId: item.id,
+          channelId: item.snippet.channelId,
+          title: item.snippet.title,
+          description: item.snippet.description,
+          publishedAt: new Date(item.snippet.publishedAt),
+          thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || "",
+          duration: item.contentDetails.duration,
+        }))
+        .filter((v: YouTubeVideo) => parseDuration(v.duration) > 180); // 3분 미만 영상 제외
+
+      // 중복 제거하며 추가
+      for (const video of fetchedVideos) {
+        if (!validVideos.some((v) => v.videoId === video.videoId)) {
+          validVideos.push(video);
+          if (validVideos.length >= maxResults) break;
+        }
+      }
+
+      // 더 이상 페이지가 없으면 종료
+      if (!nextPageToken) break;
+    }
+
+    return validVideos;
   } catch (error) {
     console.error("Error fetching channel videos:", error);
     throw new Error("Failed to fetch channel videos");
