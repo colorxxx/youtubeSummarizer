@@ -146,7 +146,8 @@ export async function saveVideo(video: InsertVideo) {
   try {
     await db.insert(videos).values(video);
   } catch (error: any) {
-    if (error.code === 'ER_DUP_ENTRY') {
+    const isDup = error.code === 'ER_DUP_ENTRY' || error?.cause?.code === 'ER_DUP_ENTRY';
+    if (isDup) {
       console.log(`Video ${video.videoId} already exists, skipping`);
     } else {
       throw error;
