@@ -27,6 +27,7 @@ export default function Subscriptions() {
     onSuccess: () => {
       toast.success("Channel unsubscribed!");
       utils.subscriptions.list.invalidate();
+      utils.dashboard.channelSummaries.invalidate();
     },
     onError: (error) => {
       toast.error(error.message);
@@ -37,6 +38,7 @@ export default function Subscriptions() {
     onSuccess: (data) => {
       toast.success(data.message || "Channel subscribed!");
       utils.subscriptions.list.invalidate();
+      utils.dashboard.channelSummaries.invalidate();
       setDialogOpen(false);
       setSearchResults([]);
       setSearchQuery("");
