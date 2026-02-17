@@ -3,15 +3,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Youtube, Clock, Loader2, RefreshCw } from "lucide-react";
+import { ChevronDown, Youtube, Clock, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { formatDuration } from "@/lib/utils";
 
 export default function Dashboard() {
   const { data: channelData, isLoading, refetch } = trpc.dashboard.channelSummaries.useQuery();
   const [openChannels, setOpenChannels] = useState<Set<string>>(new Set());
+  const deleteMutation = trpc.summaries.delete.useMutation({
+    onSuccess: () => {
+      toast.success("요약이 삭제되었습니다");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error("삭제 실패: " + error.message);
+    },
+  });
   const refreshMutation = trpc.dashboard.refreshVideos.useMutation({
     onSuccess: (data) => {
       toast.success(data.message || `Found ${data.newVideos} new videos`);
@@ -131,21 +141,36 @@ export default function Dashboard() {
                               />
                             )}
                             <div className="flex-1 min-w-0">
-                              <CardTitle className="text-base md:text-lg mb-2">
-                                <a
-                                  href={`https://youtube.com/watch?v=${summary.videoId}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="hover:text-primary transition-colors break-words"
+                              <div className="flex items-start justify-between gap-2">
+                                <CardTitle className="text-base md:text-lg mb-2">
+                                  <a
+                                    href={`https://youtube.com/watch?v=${summary.videoId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-primary transition-colors break-words"
+                                  >
+                                    {summary.video?.title}
+                                  </a>
+                                </CardTitle>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                                  disabled={deleteMutation.isPending}
+                                  onClick={() => {
+                                    if (confirm("이 요약을 삭제하시겠습니까?")) {
+                                      deleteMutation.mutate({ summaryId: summary.id });
+                                    }
+                                  }}
                                 >
-                                  {summary.video?.title}
-                                </a>
-                              </CardTitle>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                               <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-muted-foreground">
                                 {summary.video?.duration && (
                                   <span className="flex items-center gap-1">
                                     <Clock className="h-3 w-3 md:h-4 md:w-4" />
-                                    {summary.video.duration}
+                                    {formatDuration(summary.video.duration)}
                                   </span>
                                 )}
                                 {summary.createdAt && (

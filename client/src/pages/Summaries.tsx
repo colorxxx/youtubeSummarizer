@@ -1,14 +1,26 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { FileText, Loader2, Youtube } from "lucide-react";
+import { Clock, FileText, Loader2, Trash2, Youtube } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { formatDuration } from "@/lib/utils";
 import { Streamdown } from "streamdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Summaries() {
   const { user } = useAuth();
-  const { data: summaries, isLoading } = trpc.summaries.list.useQuery();
+  const { data: summaries, isLoading, refetch } = trpc.summaries.list.useQuery();
   const { data: videos } = trpc.videos.recent.useQuery();
+  const deleteMutation = trpc.summaries.delete.useMutation({
+    onSuccess: () => {
+      toast.success("요약이 삭제되었습니다");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error("삭제 실패: " + error.message);
+    },
+  });
 
   if (!user) {
     return (
@@ -57,24 +69,46 @@ export default function Summaries() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-xl mb-2">
-                        {video ? (
-                          <a
-                            href={`https://youtube.com/watch?v=${summary.videoId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:text-primary transition-colors"
-                          >
-                            {video.title}
-                          </a>
-                        ) : (
-                          summary.videoId
-                        )}
-                      </CardTitle>
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-xl mb-2">
+                          {video ? (
+                            <a
+                              href={`https://youtube.com/watch?v=${summary.videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-primary transition-colors"
+                            >
+                              {video.title}
+                            </a>
+                          ) : (
+                            summary.videoId
+                          )}
+                        </CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => {
+                            if (confirm("이 요약을 삭제하시겠습니까?")) {
+                              deleteMutation.mutate({ summaryId: summary.id });
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                       <CardDescription>
                         {video && (
                           <>
-                            {new Date(video.publishedAt).toLocaleDateString("en-US", {
+                            {video.duration && (
+                              <>
+                                <Clock className="inline h-3.5 w-3.5 mr-1 align-text-bottom" />
+                                {formatDuration(video.duration)}
+                                {" • "}
+                              </>
+                            )}
+                            {new Date(video.publishedAt).toLocaleDateString("ko-KR", {
                               year: "numeric",
                               month: "long",
                               day: "numeric",

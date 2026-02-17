@@ -260,6 +260,15 @@ export async function getAllSubscriptions() {
   }
 }
 
+export async function deleteSummary(userId: number, summaryId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(summaries).where(
+    and(eq(summaries.id, summaryId), eq(summaries.userId, userId))
+  );
+}
+
 export async function getVideoByVideoId(videoId: string) {
   const db = await getDb();
   if (!db) return undefined;

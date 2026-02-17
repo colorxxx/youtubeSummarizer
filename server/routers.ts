@@ -152,6 +152,13 @@ export const appRouter = router({
       const { getUserSummaries } = await import("./db");
       return getUserSummaries(ctx.user.id, 50);
     }),
+    delete: protectedProcedure
+      .input(z.object({ summaryId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { deleteSummary } = await import("./db");
+        await deleteSummary(ctx.user.id, input.summaryId);
+        return { success: true };
+      }),
   }),
 
   settings: router({
