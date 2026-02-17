@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { getAllSubscriptions, saveVideo, saveSummary, getVideoByVideoId } from "./db";
+import { getAllSubscriptions, getSubscription, saveVideo, saveSummary, getVideoByVideoId } from "./db";
 import { getChannelVideos } from "./youtube";
 import { generateVideoSummary } from "./summarizer";
 
@@ -107,6 +107,75 @@ export async function checkNewVideos() {
     console.error("[VideoCheck] Error during video check:", error);
     throw error;
   }
+}
+
+/**
+ * Check for new videos from a specific channel for a specific user
+ */
+export async function checkChannelVideos(userId: number, channelId: string) {
+  console.log(`[ChannelRefresh] Starting refresh for channel ${channelId}, user ${userId}`);
+
+  const sub = await getSubscription(userId, channelId);
+  if (!sub) {
+    return { success: false, message: "Subscription not found", newVideos: 0 };
+  }
+
+  const videoCount = sub.videoCount || 3;
+  const videos = await getChannelVideos(channelId, videoCount);
+
+  if (videos.length === 0) {
+    console.log(`[ChannelRefresh] No videos found for channel ${channelId}`);
+    return { success: true, message: "No videos found", newVideos: 0 };
+  }
+
+  let newVideos = 0;
+
+  for (const video of videos) {
+    const existing = await getVideoByVideoId(video.videoId);
+    if (existing) {
+      // Video exists, but check if this user already has a summary
+      const { getUserSummaryForVideo } = await import("./db");
+      const existingSummary = await getUserSummaryForVideo(userId, video.videoId);
+      if (existingSummary) {
+        console.log(`[ChannelRefresh] Summary already exists for video ${video.videoId}, skipping`);
+        continue;
+      }
+    } else {
+      await saveVideo({
+        videoId: video.videoId,
+        channelId: video.channelId,
+        title: video.title,
+        description: video.description,
+        publishedAt: video.publishedAt,
+        thumbnailUrl: video.thumbnailUrl,
+        duration: video.duration,
+      });
+    }
+
+    try {
+      const { brief, detailed } = await generateVideoSummary(
+        video.videoId,
+        video.title,
+        video.description,
+        video.duration
+      );
+
+      await saveSummary({
+        videoId: video.videoId,
+        userId,
+        summary: brief,
+        detailedSummary: detailed,
+      });
+
+      newVideos++;
+      console.log(`[ChannelRefresh] Summary saved for video ${video.videoId}`);
+    } catch (error) {
+      console.error(`[ChannelRefresh] Error generating summary for video ${video.videoId}:`, error);
+    }
+  }
+
+  console.log(`[ChannelRefresh] Completed. ${newVideos} new summaries generated`);
+  return { success: true, message: `${newVideos}개의 새 요약이 생성되었습니다`, newVideos };
 }
 
 /**

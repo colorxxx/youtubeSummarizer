@@ -127,6 +127,18 @@ export const appRouter = router({
         throw new Error("Failed to check for new videos");
       }
     }),
+    refreshChannel: protectedProcedure
+      .input(z.object({ channelId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { checkChannelVideos } = await import("./cronJobs");
+        try {
+          const result = await checkChannelVideos(ctx.user.id, input.channelId);
+          return result;
+        } catch (error) {
+          console.error(`[Dashboard] Error refreshing channel ${input.channelId}:`, error);
+          throw new Error("Failed to refresh channel videos");
+        }
+      }),
   }),
 
   youtube: router({

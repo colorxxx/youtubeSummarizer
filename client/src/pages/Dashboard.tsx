@@ -31,6 +31,18 @@ export default function Dashboard() {
       toast.error("Failed to check for new videos: " + error.message);
     },
   });
+  const [refreshingChannelId, setRefreshingChannelId] = useState<string | null>(null);
+  const refreshChannelMutation = trpc.dashboard.refreshChannel.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message || `${data.newVideos}개의 새 요약이 생성되었습니다`);
+      setRefreshingChannelId(null);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error("채널 새로고침 실패: " + error.message);
+      setRefreshingChannelId(null);
+    },
+  });
 
   const toggleChannel = (channelId: string) => {
     setOpenChannels((prev) => {
@@ -118,6 +130,22 @@ export default function Dashboard() {
                           {item.summaries.length} video{item.summaries.length > 1 ? "s" : ""} summarized
                         </CardDescription>
                       </div>
+                      <button
+                        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                        disabled={refreshingChannelId === item.channel.channelId}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRefreshingChannelId(item.channel.channelId);
+                          refreshChannelMutation.mutate({ channelId: item.channel.channelId });
+                        }}
+                        title="채널 새로고침"
+                      >
+                        {refreshingChannelId === item.channel.channelId ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </button>
                       <ChevronDown
                         className={`h-5 w-5 transition-transform flex-shrink-0 ${
                           openChannels.has(item.channel.channelId) ? "rotate-180" : ""

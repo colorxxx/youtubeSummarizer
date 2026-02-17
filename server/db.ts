@@ -181,6 +181,19 @@ export async function saveSummary(summary: InsertSummary) {
   await db.insert(summaries).values(summary);
 }
 
+export async function getUserSummaryForVideo(userId: number, videoId: string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(summaries)
+    .where(and(eq(summaries.userId, userId), eq(summaries.videoId, videoId)))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
+}
+
 export async function getUserSummaries(userId: number, limit: number = 50) {
   const db = await getDb();
   if (!db) return [];
