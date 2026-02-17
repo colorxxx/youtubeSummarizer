@@ -39,10 +39,13 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
+  const isSecure = isSecureRequest(req);
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    // sameSite: "none"은 secure: true가 필수
+    // 개발 환경(HTTP)에서는 "lax" 사용
+    sameSite: isSecure ? "none" : "lax",
+    secure: isSecure,
   };
 }
