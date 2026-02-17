@@ -153,7 +153,7 @@ export async function getChannelVideos(
         thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || "",
         duration: item.contentDetails.duration,
       }))
-      .filter((v: YouTubeVideo) => parseDuration(v.duration) > 60); // Shorts(60초 이하) 제외
+      .filter((v: YouTubeVideo) => parseDuration(v.duration) > 180); // 3분 미만 영상 제외
 
     return videos;
   } catch (error) {

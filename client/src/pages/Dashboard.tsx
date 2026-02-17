@@ -34,9 +34,9 @@ export default function Dashboard() {
   const [refreshingChannelId, setRefreshingChannelId] = useState<string | null>(null);
   const refreshChannelMutation = trpc.dashboard.refreshChannel.useMutation({
     onSuccess: (data) => {
-      toast.success(data.message || `${data.newVideos}개의 새 요약이 생성되었습니다`);
+      toast.info(data.message || "백그라운드에서 처리 중...");
       setRefreshingChannelId(null);
-      refetch();
+      // Refetch is handled by background task completion
     },
     onError: (error) => {
       toast.error("채널 새로고침 실패: " + error.message);
@@ -136,7 +136,7 @@ export default function Dashboard() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setRefreshingChannelId(item.channel.channelId);
-                          refreshChannelMutation.mutate({ channelId: item.channel.channelId });
+                          refreshChannelMutation.mutate({ channelId: item.channel.channelId, channelName: item.channel.channelName });
                         }}
                         title="채널 새로고침"
                       >

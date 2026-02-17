@@ -3,6 +3,13 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
+import {
+  createTask,
+  updateTaskProgress,
+  completeTask,
+  failTask,
+  getRecentTasks,
+} from "./backgroundTasks";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -50,16 +57,26 @@ export const appRouter = router({
           videoCount,
         });
         
-        // Background processing
+        // Background processing with task tracking
         (async () => {
+          const { saveVideo, saveSummary } = await import("./db");
+          const { getChannelVideos } = await import("./youtube");
+          const { generateVideoSummary } = await import("./summarizer");
+
+          let taskId: string | null = null;
+
           try {
-            const { saveVideo, saveSummary } = await import("./db");
-            const { getChannelVideos } = await import("./youtube");
-            const { generateVideoSummary } = await import("./summarizer");
-            
             const videos = await getChannelVideos(input.channelId, videoCount);
-            
-            for (const video of videos) {
+
+            if (videos.length === 0) {
+              console.log(`No videos to process for channel ${input.channelId}`);
+              return;
+            }
+
+            taskId = createTask(ctx.user.id, input.channelId, input.channelName, videos.length);
+
+            for (let i = 0; i < videos.length; i++) {
+              const video = videos[i];
               try {
                 await saveVideo({
                   videoId: video.videoId,
@@ -70,27 +87,34 @@ export const appRouter = router({
                   thumbnailUrl: video.thumbnailUrl,
                   duration: video.duration,
                 });
-                
+
                 const summaryResult = await generateVideoSummary(
                   video.videoId,
                   video.title,
                   video.description,
                   video.duration
                 );
-                
+
                 await saveSummary({
                   videoId: video.videoId,
                   userId: ctx.user.id,
                   summary: summaryResult.brief,
                   detailedSummary: summaryResult.detailed,
                 });
+
+                updateTaskProgress(taskId, i + 1);
               } catch (error) {
                 console.error(`Error processing video ${video.videoId}:`, error);
               }
             }
+
+            completeTask(taskId);
             console.log(`Background processing complete for channel ${input.channelId}`);
           } catch (error) {
             console.error(`Background processing failed:`, error);
+            if (taskId) {
+              failTask(taskId, error instanceof Error ? error.message : "Unknown error");
+            }
           }
         })();
         
@@ -128,16 +152,90 @@ export const appRouter = router({
       }
     }),
     refreshChannel: protectedProcedure
-      .input(z.object({ channelId: z.string() }))
+      .input(z.object({ channelId: z.string(), channelName: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
-        const { checkChannelVideos } = await import("./cronJobs");
-        try {
-          const result = await checkChannelVideos(ctx.user.id, input.channelId);
-          return result;
-        } catch (error) {
-          console.error(`[Dashboard] Error refreshing channel ${input.channelId}:`, error);
-          throw new Error("Failed to refresh channel videos");
+        const { getSubscription } = await import("./db");
+        const sub = await getSubscription(ctx.user.id, input.channelId);
+
+        if (!sub) {
+          throw new Error("Subscription not found");
         }
+
+        const channelName = input.channelName || sub.channelName;
+
+        // Background processing with task tracking
+        (async () => {
+          const { getChannelVideos } = await import("./youtube");
+          const { saveVideo, saveSummary, getVideoByVideoId, getUserSummaryForVideo } = await import("./db");
+          const { generateVideoSummary } = await import("./summarizer");
+
+          let taskId: string | null = null;
+
+          try {
+            const videoCount = sub.videoCount || 3;
+            const videos = await getChannelVideos(input.channelId, videoCount);
+
+            if (videos.length === 0) {
+              console.log(`[ChannelRefresh] No videos found for channel ${input.channelId}`);
+              return;
+            }
+
+            taskId = createTask(ctx.user.id, input.channelId, channelName, videos.length);
+
+            for (let i = 0; i < videos.length; i++) {
+              const video = videos[i];
+
+              const existing = await getVideoByVideoId(video.videoId);
+              if (existing) {
+                const existingSummary = await getUserSummaryForVideo(ctx.user.id, video.videoId);
+                if (existingSummary) {
+                  updateTaskProgress(taskId, i + 1);
+                  continue;
+                }
+              } else {
+                await saveVideo({
+                  videoId: video.videoId,
+                  channelId: video.channelId,
+                  title: video.title,
+                  description: video.description,
+                  publishedAt: video.publishedAt,
+                  thumbnailUrl: video.thumbnailUrl,
+                  duration: video.duration,
+                });
+              }
+
+              try {
+                const { brief, detailed } = await generateVideoSummary(
+                  video.videoId,
+                  video.title,
+                  video.description,
+                  video.duration
+                );
+
+                await saveSummary({
+                  videoId: video.videoId,
+                  userId: ctx.user.id,
+                  summary: brief,
+                  detailedSummary: detailed,
+                });
+              } catch (error) {
+                console.error(`[ChannelRefresh] Error generating summary for video ${video.videoId}:`, error);
+              }
+
+              updateTaskProgress(taskId, i + 1);
+            }
+
+            completeTask(taskId);
+            console.log(`[ChannelRefresh] Completed for channel ${input.channelId}`);
+          } catch (error) {
+            console.error(`[ChannelRefresh] Failed:`, error);
+            if (taskId) {
+              failTask(taskId, error instanceof Error ? error.message : "Unknown error");
+            }
+          }
+        })();
+
+        return { success: true, message: "새로고침을 시작했습니다" };
       }),
   }),
 
@@ -171,6 +269,12 @@ export const appRouter = router({
         await deleteSummary(ctx.user.id, input.summaryId);
         return { success: true };
       }),
+  }),
+
+  backgroundTasks: router({
+    list: protectedProcedure.query(({ ctx }) => {
+      return getRecentTasks(ctx.user.id, 10);
+    }),
   }),
 
   settings: router({

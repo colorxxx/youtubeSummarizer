@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Subscriptions from "./pages/Subscriptions";
 import Summaries from "./pages/Summaries";
 import Settings from "./pages/Settings";
+import { BackgroundTasksBar } from "./components/BackgroundTasksBar";
 
 function Router() {
   return (
@@ -56,6 +57,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <BackgroundTasksBar />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
