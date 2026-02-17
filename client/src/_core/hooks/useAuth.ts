@@ -16,6 +16,7 @@ export function useAuth(options?: UseAuthOptions) {
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
+    refetchOnMount: "always", // 페이지 로드 시 항상 서버에 재요청
   });
 
   const logoutMutation = trpc.auth.logout.useMutation({

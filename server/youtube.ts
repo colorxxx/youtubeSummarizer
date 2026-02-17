@@ -1,5 +1,6 @@
 import axios from "axios";
 import { YoutubeTranscript } from "youtube-transcript";
+import { parseDuration } from "./videoUtils";
 
 /**
  * YouTube Data API v3 integration helper
@@ -142,15 +143,17 @@ export async function getChannelVideos(
       },
     });
 
-    const videos: YouTubeVideo[] = videosResponse.data.items.map((item: any) => ({
-      videoId: item.id,
-      channelId: item.snippet.channelId,
-      title: item.snippet.title,
-      description: item.snippet.description,
-      publishedAt: new Date(item.snippet.publishedAt),
-      thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || "",
-      duration: item.contentDetails.duration,
-    }));
+    const videos: YouTubeVideo[] = videosResponse.data.items
+      .map((item: any) => ({
+        videoId: item.id,
+        channelId: item.snippet.channelId,
+        title: item.snippet.title,
+        description: item.snippet.description,
+        publishedAt: new Date(item.snippet.publishedAt),
+        thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || "",
+        duration: item.contentDetails.duration,
+      }))
+      .filter((v: YouTubeVideo) => parseDuration(v.duration) > 60); // Shorts(60초 이하) 제외
 
     return videos;
   } catch (error) {
