@@ -66,7 +66,7 @@ export default function Dashboard() {
     );
   }
 
-  const channelsWithSummaries = channelData?.filter((c) => c.summaries.length > 0) || [];
+  const allChannels = channelData || [];
 
   return (
     <div className="container py-6 md:py-8">
@@ -98,7 +98,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {channelsWithSummaries.length === 0 ? (
+      {allChannels.length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-center">
             <Youtube className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -109,7 +109,7 @@ export default function Dashboard() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {channelsWithSummaries.map((item) => (
+          {allChannels.map((item) => (
             <Collapsible
               key={item.channel.channelId}
               open={openChannels.has(item.channel.channelId)}
@@ -129,7 +129,9 @@ export default function Dashboard() {
                       <div className="flex-1 min-w-0">
                         <CardTitle className="text-lg md:text-xl truncate">{item.channel.channelName}</CardTitle>
                         <CardDescription className="text-xs md:text-sm">
-                          {item.summaries.length} video{item.summaries.length > 1 ? "s" : ""} summarized
+                          {item.summaries.length > 0
+                            ? `${item.summaries.length} video${item.summaries.length > 1 ? "s" : ""} summarized`
+                            : "요약 없음"}
                         </CardDescription>
                       </div>
                       {(() => {
@@ -171,8 +173,13 @@ export default function Dashboard() {
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>
-                  <CardContent className="space-y-4 md:space-y-6 pt-4">
-                    {item.summaries.map((summary) => (
+                  {item.summaries.length === 0 ? (
+                    <CardContent className="py-8 text-center text-muted-foreground">
+                      요약 없음
+                    </CardContent>
+                  ) : (
+                    <CardContent className="space-y-4 md:space-y-6 pt-4">
+                      {item.summaries.map((summary) => (
                       <Card key={summary.videoId} className="border-2">
                         <CardHeader className="pb-3">
                           <div className="flex flex-col md:flex-row gap-3 md:gap-4">
@@ -244,8 +251,9 @@ export default function Dashboard() {
                           </Tabs>
                         </CardContent>
                       </Card>
-                    ))}
-                  </CardContent>
+                      ))}
+                    </CardContent>
+                  )}
                 </CollapsibleContent>
               </Card>
             </Collapsible>
