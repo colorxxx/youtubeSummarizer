@@ -282,6 +282,63 @@ export const appRouter = router({
       }),
   }),
 
+  chat: router({
+    history: protectedProcedure
+      .input(z.object({ videoId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const { getChatHistory } = await import("./db");
+        return getChatHistory(ctx.user.id, input.videoId);
+      }),
+    send: protectedProcedure
+      .input(z.object({ videoId: z.string(), message: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { getChatHistory, saveChatMessage, getUserSummaryForVideo, getVideoByVideoId } = await import("./db");
+        const { invokeLLM } = await import("./_core/llm");
+
+        // Get video info and summary for context
+        const [video, summary, history] = await Promise.all([
+          getVideoByVideoId(input.videoId),
+          getUserSummaryForVideo(ctx.user.id, input.videoId),
+          getChatHistory(ctx.user.id, input.videoId),
+        ]);
+
+        if (!video) throw new Error("영상 정보를 찾을 수 없습니다");
+
+        // Build system prompt with video context
+        const systemContent = [
+          "당신은 유튜브 영상에 대해 질문에 답변하는 AI 어시스턴트입니다.",
+          "항상 한국어로 답변하세요.",
+          "",
+          "[영상 정보]",
+          `제목: ${video.title}`,
+          summary ? `요약: ${summary.summary}` : "",
+          summary?.detailedSummary ? `상세 요약: ${summary.detailedSummary}` : "",
+        ].filter(Boolean).join("\n");
+
+        // Build message history for LLM
+        const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+          { role: "system", content: systemContent },
+          ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+          { role: "user" as const, content: input.message },
+        ];
+
+        // Save user message
+        await saveChatMessage(ctx.user.id, input.videoId, "user", input.message);
+
+        // Call LLM
+        const result = await invokeLLM({ messages });
+        const assistantContent =
+          typeof result.choices[0]?.message?.content === "string"
+            ? result.choices[0].message.content
+            : "응답을 생성할 수 없습니다.";
+
+        // Save assistant message
+        await saveChatMessage(ctx.user.id, input.videoId, "assistant", assistantContent);
+
+        return { role: "assistant" as const, content: assistantContent };
+      }),
+  }),
+
   backgroundTasks: router({
     list: protectedProcedure.query(({ ctx }) => {
       return getRecentTasks(ctx.user.id, 10);

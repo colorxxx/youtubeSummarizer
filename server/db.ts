@@ -1,6 +1,6 @@
 import { eq, desc, and, inArray, like, sql, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, InsertSubscription, InsertVideo, InsertSummary, InsertUserSettings, users, subscriptions, videos, summaries, userSettings } from "../drizzle/schema";
+import { InsertUser, InsertSubscription, InsertVideo, InsertSummary, InsertUserSettings, users, subscriptions, videos, summaries, userSettings, chatMessages } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -329,6 +329,24 @@ export async function deleteSummary(userId: number, summaryId: number) {
   await db.delete(summaries).where(
     and(eq(summaries.id, summaryId), eq(summaries.userId, userId))
   );
+}
+
+export async function getChatHistory(userId: number, videoId: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(chatMessages)
+    .where(and(eq(chatMessages.userId, userId), eq(chatMessages.videoId, videoId)))
+    .orderBy(chatMessages.createdAt);
+}
+
+export async function saveChatMessage(userId: number, videoId: string, role: "user" | "assistant", content: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(chatMessages).values({ userId, videoId, role, content });
 }
 
 export async function getVideoByVideoId(videoId: string) {

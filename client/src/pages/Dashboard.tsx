@@ -3,13 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Youtube, Clock, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, Youtube, Clock, Loader2, RefreshCw, Trash2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { formatDuration } from "@/lib/utils";
 import { useBackgroundTasks } from "@/hooks/useBackgroundTasks";
+import { VideoChatSheet } from "@/components/VideoChatSheet";
 
 export default function Dashboard() {
   const { data: channelData, isLoading, refetch } = trpc.dashboard.channelSummaries.useQuery();
@@ -33,6 +34,7 @@ export default function Dashboard() {
       toast.error("Failed to check for new videos: " + error.message);
     },
   });
+  const [chatVideo, setChatVideo] = useState<{ videoId: string; title: string } | null>(null);
   const [refreshingChannelId, setRefreshingChannelId] = useState<string | null>(null);
   const refreshChannelMutation = trpc.dashboard.refreshChannel.useMutation({
     onSuccess: (data) => {
@@ -202,19 +204,30 @@ export default function Dashboard() {
                                     {summary.video?.title}
                                   </a>
                                 </CardTitle>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive"
-                                  disabled={deleteMutation.isPending}
-                                  onClick={() => {
-                                    if (confirm("이 요약을 삭제하시겠습니까?")) {
-                                      deleteMutation.mutate({ summaryId: summary.id });
-                                    }
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                    onClick={() => setChatVideo({ videoId: summary.videoId, title: summary.video?.title || "" })}
+                                    title="AI 채팅"
+                                  >
+                                    <MessageCircle className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    disabled={deleteMutation.isPending}
+                                    onClick={() => {
+                                      if (confirm("이 요약을 삭제하시겠습니까?")) {
+                                        deleteMutation.mutate({ summaryId: summary.id });
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
                               <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-muted-foreground">
                                 {summary.video?.duration && (
@@ -259,6 +272,15 @@ export default function Dashboard() {
             </Collapsible>
           ))}
         </div>
+      )}
+
+      {chatVideo && (
+        <VideoChatSheet
+          videoId={chatVideo.videoId}
+          videoTitle={chatVideo.title}
+          open={!!chatVideo}
+          onOpenChange={(open) => { if (!open) setChatVideo(null); }}
+        />
       )}
     </div>
   );

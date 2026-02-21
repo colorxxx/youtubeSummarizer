@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { Clock, FileText, Loader2, Search, Trash2, Youtube } from "lucide-react";
+import { Clock, FileText, Loader2, MessageCircle, Search, Trash2, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useEffect, useRef, useState } from "react";
+import { VideoChatSheet } from "@/components/VideoChatSheet";
 
 export default function Summaries() {
   const { user } = useAuth();
@@ -25,6 +26,7 @@ export default function Summaries() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [chatVideo, setChatVideo] = useState<{ videoId: string; title: string } | null>(null);
   const limit = 10;
 
   const { data, isLoading, refetch } = trpc.summaries.list.useQuery({
@@ -147,19 +149,30 @@ export default function Summaries() {
                             summary.videoId
                           )}
                         </CardTitle>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive"
-                          disabled={deleteMutation.isPending}
-                          onClick={() => {
-                            if (confirm("이 요약을 삭제하시겠습니까?")) {
-                              deleteMutation.mutate({ summaryId: summary.id });
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={() => setChatVideo({ videoId: summary.videoId, title: summary.videoTitle || "" })}
+                            title="AI 채팅"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            disabled={deleteMutation.isPending}
+                            onClick={() => {
+                              if (confirm("이 요약을 삭제하시겠습니까?")) {
+                                deleteMutation.mutate({ summaryId: summary.id });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       <CardDescription>
                         {summary.videoDuration && (
@@ -265,6 +278,15 @@ export default function Summaries() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {chatVideo && (
+        <VideoChatSheet
+          videoId={chatVideo.videoId}
+          videoTitle={chatVideo.title}
+          open={!!chatVideo}
+          onOpenChange={(open) => { if (!open) setChatVideo(null); }}
+        />
       )}
     </div>
   );
