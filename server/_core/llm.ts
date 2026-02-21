@@ -263,6 +263,40 @@ const normalizeResponseFormat = ({
   };
 };
 
+export type InvokeStreamParams = {
+  messages: Message[];
+  maxTokens?: number;
+};
+
+export async function invokeLLMStream(params: InvokeStreamParams): Promise<Response> {
+  assertApiKey();
+
+  const payload: Record<string, unknown> = {
+    model: "deepseek-chat",
+    messages: params.messages.map(normalizeMessage),
+    stream: true,
+    max_tokens: params.maxTokens ?? 8192,
+  };
+
+  const response = await fetch(resolveApiUrl(), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${ENV.deepseekApiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `LLM stream invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+    );
+  }
+
+  return response;
+}
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
 

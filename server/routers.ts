@@ -294,6 +294,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { getChatHistory, saveChatMessage, getUserSummaryForVideo, getVideoByVideoId } = await import("./db");
         const { invokeLLM } = await import("./_core/llm");
+        const { buildChatMessages } = await import("./chatContext");
 
         // Get video info and summary for context
         const [video, summary, history] = await Promise.all([
@@ -315,12 +316,8 @@ export const appRouter = router({
           summary?.detailedSummary ? `상세 요약: ${summary.detailedSummary}` : "",
         ].filter(Boolean).join("\n");
 
-        // Build message history for LLM
-        const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
-          { role: "system", content: systemContent },
-          ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-          { role: "user" as const, content: input.message },
-        ];
+        // Build messages with token budget management
+        const messages = await buildChatMessages(systemContent, history, input.message);
 
         // Save user message
         await saveChatMessage(ctx.user.id, input.videoId, "user", input.message);
@@ -336,6 +333,13 @@ export const appRouter = router({
         await saveChatMessage(ctx.user.id, input.videoId, "assistant", assistantContent);
 
         return { role: "assistant" as const, content: assistantContent };
+      }),
+    clear: protectedProcedure
+      .input(z.object({ videoId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { deleteChatHistory } = await import("./db");
+        await deleteChatHistory(ctx.user.id, input.videoId);
+        return { success: true };
       }),
   }),
 
