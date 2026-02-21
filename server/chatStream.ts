@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { sdk } from "./_core/sdk";
 import { getChatHistory, saveChatMessage, getUserSummaryForVideo, getVideoByVideoId } from "./db";
 import { invokeLLMStream } from "./_core/llm";
-import { buildChatMessages } from "./chatContext";
+import { buildChatMessages, buildSystemPrompt } from "./chatContext";
 
 export async function handleChatStream(req: Request, res: Response) {
   try {
@@ -27,16 +27,8 @@ export async function handleChatStream(req: Request, res: Response) {
       return;
     }
 
-    // Build system prompt
-    const systemContent = [
-      "당신은 유튜브 영상에 대해 질문에 답변하는 AI 어시스턴트입니다.",
-      "항상 한국어로 답변하세요.",
-      "",
-      "[영상 정보]",
-      `제목: ${video.title}`,
-      summary ? `요약: ${summary.summary}` : "",
-      summary?.detailedSummary ? `상세 요약: ${summary.detailedSummary}` : "",
-    ].filter(Boolean).join("\n");
+    // Build system prompt with transcript
+    const systemContent = await buildSystemPrompt(video, summary, videoId);
 
     // Build messages with token budget management
     const messages = await buildChatMessages(systemContent, history, message);

@@ -1,5 +1,5 @@
 import { invokeLLM } from "./_core/llm";
-import { getVideoTranscript } from "./youtube";
+import { getOrFetchTranscript } from "./db";
 import { parseDuration, getTargetSummaryLength } from "./videoUtils";
 
 /**
@@ -13,8 +13,8 @@ export async function generateVideoSummary(
   duration?: string
 ): Promise<{ brief: string; detailed: string }> {
   try {
-    // Try to get transcript first
-    const transcript = await getVideoTranscript(videoId);
+    // Try to get transcript (from DB cache or YouTube)
+    const transcript = await getOrFetchTranscript(videoId);
     
     // Prepare content for summarization
     // Use transcript if available, otherwise fall back to description

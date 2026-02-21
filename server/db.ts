@@ -1,4 +1,4 @@
-import { eq, desc, and, inArray, like, sql, count } from "drizzle-orm";
+import { eq, desc, and, inArray, like, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, InsertSubscription, InsertVideo, InsertSummary, InsertUserSettings, users, subscriptions, videos, summaries, userSettings, chatMessages } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -361,7 +361,7 @@ export async function saveChatMessage(userId: number, videoId: string, role: "us
 export async function getVideoByVideoId(videoId: string) {
   const db = await getDb();
   if (!db) return undefined;
-  
+
   try {
     const result = await db.select().from(videos).where(eq(videos.videoId, videoId)).limit(1);
     return result.length > 0 ? result[0] : undefined;
@@ -369,4 +369,39 @@ export async function getVideoByVideoId(videoId: string) {
     console.error("[Database] Error getting video by videoId:", error);
     return undefined;
   }
+}
+
+export async function getOrFetchTranscript(videoId: string): Promise<{ text: string; available: boolean }> {
+  const { getVideoTranscript } = await import("./youtube");
+
+  const db = await getDb();
+  if (!db) {
+    // DB 사용 불가 시 직접 fetch
+    return getVideoTranscript(videoId);
+  }
+
+  // DB에서 캐시 확인
+  const result = await db.select({ transcript: videos.transcript }).from(videos).where(eq(videos.videoId, videoId)).limit(1);
+  const row = result[0];
+
+  if (row && row.transcript !== null) {
+    // 캐시 히트 (빈 문자열 = 자막 없는 영상)
+    return {
+      text: row.transcript,
+      available: row.transcript.length > 0,
+    };
+  }
+
+  // 캐시 미스 → YouTube에서 fetch
+  const fetched = await getVideoTranscript(videoId);
+  const textToStore = fetched.available ? fetched.text : "";
+
+  try {
+    await db.update(videos).set({ transcript: textToStore }).where(eq(videos.videoId, videoId));
+    console.log(`[Transcript] Cached transcript for ${videoId} (${textToStore.length} chars)`);
+  } catch (error) {
+    console.error(`[Transcript] Failed to cache transcript for ${videoId}:`, error);
+  }
+
+  return fetched;
 }

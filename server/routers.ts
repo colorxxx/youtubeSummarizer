@@ -294,7 +294,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { getChatHistory, saveChatMessage, getUserSummaryForVideo, getVideoByVideoId } = await import("./db");
         const { invokeLLM } = await import("./_core/llm");
-        const { buildChatMessages } = await import("./chatContext");
+        const { buildChatMessages, buildSystemPrompt } = await import("./chatContext");
 
         // Get video info and summary for context
         const [video, summary, history] = await Promise.all([
@@ -305,16 +305,8 @@ export const appRouter = router({
 
         if (!video) throw new Error("영상 정보를 찾을 수 없습니다");
 
-        // Build system prompt with video context
-        const systemContent = [
-          "당신은 유튜브 영상에 대해 질문에 답변하는 AI 어시스턴트입니다.",
-          "항상 한국어로 답변하세요.",
-          "",
-          "[영상 정보]",
-          `제목: ${video.title}`,
-          summary ? `요약: ${summary.summary}` : "",
-          summary?.detailedSummary ? `상세 요약: ${summary.detailedSummary}` : "",
-        ].filter(Boolean).join("\n");
+        // Build system prompt with video context and transcript
+        const systemContent = await buildSystemPrompt(video, summary, input.videoId);
 
         // Build messages with token budget management
         const messages = await buildChatMessages(systemContent, history, input.message);

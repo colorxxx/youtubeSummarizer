@@ -53,6 +53,7 @@ export const videos = mysqlTable("videos", {
   publishedAt: timestamp("publishedAt").notNull(),
   thumbnailUrl: text("thumbnailUrl"),
   duration: varchar("duration", { length: 50 }),
+  transcript: text("transcript"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

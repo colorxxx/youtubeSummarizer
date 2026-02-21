@@ -2,6 +2,29 @@ const INPUT_TOKEN_BUDGET = 50000; // 64K context - 8K output - 6K safety margin
 
 type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
+export async function buildSystemPrompt(
+  video: { title: string; description: string | null },
+  summary: { summary: string; detailedSummary?: string | null } | null,
+  videoId: string,
+): Promise<string> {
+  const { getOrFetchTranscript } = await import("./db");
+  const transcriptResult = await getOrFetchTranscript(videoId);
+  const transcript = transcriptResult.available ? transcriptResult.text : "";
+
+  return [
+    "당신은 유튜브 영상에 대해 질문에 답변하는 AI 어시스턴트입니다.",
+    "항상 한국어로 답변하세요.",
+    "자막 원본이 제공된 경우, 영상의 구체적인 내용을 바탕으로 정확하게 답변하세요.",
+    "",
+    "[영상 정보]",
+    `제목: ${video.title}`,
+    video.description ? `설명: ${video.description.slice(0, 2000)}` : "",
+    summary ? `요약: ${summary.summary}` : "",
+    summary?.detailedSummary ? `상세 요약: ${summary.detailedSummary}` : "",
+    transcript ? `\n[자막 원본]\n${transcript.slice(0, 30000)}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 function estimateTokens(text: string): number {
   // 한국어/영어 혼합 사용 기준 보수적 추정: ~1 토큰 / 2 chars
   return Math.ceil(text.length / 2);
