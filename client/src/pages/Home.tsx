@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Youtube, Mail, Sparkles, ArrowRight } from "lucide-react";
+import { Youtube, Sparkles, ArrowRight, BookOpen } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 
@@ -15,15 +15,15 @@ export default function Home() {
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
             <Youtube className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">YouTube Summary Mailer</span>
+            <span className="text-xl font-bold">YouTube 요약</span>
           </div>
           <div className="flex items-center gap-4">
             {user ? (
-              <Link href="/dashboard">
-                <Button>Go to Dashboard</Button>
+              <Link href="/summaries">
+                <Button>요약 보러가기</Button>
               </Link>
             ) : (
-              <Button onClick={() => window.location.href = getLoginUrl()}>Sign In</Button>
+              <Button onClick={() => window.location.href = getLoginUrl()}>로그인</Button>
             )}
           </div>
         </div>
@@ -35,27 +35,28 @@ export default function Home() {
           <div className="flex flex-col items-center text-center space-y-8 max-w-3xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
               <Sparkles className="h-4 w-4" />
-              AI-Powered Video Summaries
+              AI가 영상을 요약해드려요
             </div>
             <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-              Never Miss Important
+              유튜브 영상,
               <br />
-              <span className="text-primary">YouTube Content</span>
+              <span className="text-primary">읽으면 끝!</span>
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl">
-              Get AI-generated summaries of new videos from your favorite YouTube channels delivered straight to your inbox. Stay informed without spending hours watching.
+              좋아하는 유튜브 채널을 등록하면 새 영상이 올라올 때마다
+              AI가 자동으로 핵심 내용을 요약해드립니다.
             </p>
             <div className="flex gap-4">
               {user ? (
-                <Link href="/dashboard">
+                <Link href="/summaries">
                   <Button size="lg" className="text-lg px-8">
-                    Go to Dashboard
+                    요약 보러가기
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
               ) : (
                 <Button size="lg" className="text-lg px-8" onClick={() => window.location.href = getLoginUrl()}>
-                  Get Started Free
+                  무료로 시작하기
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               )}
@@ -68,8 +69,8 @@ export default function Home() {
       <section className="py-20 bg-background">
         <div className="container">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">How It Works</h2>
-            <p className="text-muted-foreground text-lg">Three simple steps to stay updated</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">이렇게 사용해요</h2>
+            <p className="text-muted-foreground text-lg">간단한 3단계로 영상 요약을 받아보세요</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card>
@@ -77,9 +78,9 @@ export default function Home() {
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                   <Youtube className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle>Subscribe to Channels</CardTitle>
+                <CardTitle>채널 구독</CardTitle>
                 <CardDescription>
-                  Add your favorite YouTube channels to track. Search and subscribe in seconds.
+                  좋아하는 유튜브 채널을 검색하고 구독하세요. 몇 초면 끝납니다.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -88,20 +89,20 @@ export default function Home() {
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                   <Sparkles className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle>AI Summarization</CardTitle>
+                <CardTitle>AI 자동 요약</CardTitle>
                 <CardDescription>
-                  Our AI automatically generates concise summaries of new videos, highlighting key points and insights.
+                  새 영상이 올라오면 AI가 자동으로 핵심 내용을 간단하게 정리해드립니다.
                 </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <Mail className="h-6 w-6 text-primary" />
+                  <BookOpen className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle>Email Delivery</CardTitle>
+                <CardTitle>요약 확인</CardTitle>
                 <CardDescription>
-                  Receive daily or weekly email digests with summaries of all new videos from your subscriptions.
+                  간단 요약과 상세 요약을 한눈에 확인하세요. 긴 영상도 빠르게 파악할 수 있습니다.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -115,20 +116,20 @@ export default function Home() {
           <Card className="border-2 border-primary/20">
             <CardContent className="py-12">
               <div className="flex flex-col items-center text-center space-y-6 max-w-2xl mx-auto">
-                <h2 className="text-3xl md:text-4xl font-bold">Ready to Get Started?</h2>
+                <h2 className="text-3xl md:text-4xl font-bold">지금 바로 시작해보세요</h2>
                 <p className="text-lg text-muted-foreground">
-                  Join now and start receiving AI-powered summaries of your favorite YouTube content.
+                  Google 계정으로 간편하게 로그인하고 유튜브 영상 요약을 받아보세요.
                 </p>
                 {user ? (
                   <Link href="/subscriptions">
                     <Button size="lg" className="text-lg px-8">
-                      Add Your First Channel
+                      첫 채널 등록하기
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
                   </Link>
                 ) : (
                   <Button size="lg" className="text-lg px-8" onClick={() => window.location.href = getLoginUrl()}>
-                    Sign Up Now
+                    Google로 시작하기
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 )}
@@ -144,7 +145,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
               <Youtube className="h-6 w-6 text-primary" />
-              <span className="font-semibold">YouTube Summary Mailer</span>
+              <span className="font-semibold">YouTube 요약</span>
             </div>
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} All rights reserved.

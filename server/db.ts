@@ -1,4 +1,4 @@
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, like, sql, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, InsertSubscription, InsertVideo, InsertSummary, InsertUserSettings, users, subscriptions, videos, summaries, userSettings } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -199,6 +199,55 @@ export async function getUserSummaries(userId: number, limit: number = 50) {
   if (!db) return [];
 
   return db.select().from(summaries).where(eq(summaries.userId, userId)).orderBy(desc(summaries.createdAt)).limit(limit);
+}
+
+export async function getUserSummariesPaginated(
+  userId: number,
+  page: number = 1,
+  limit: number = 10,
+  search?: string,
+) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+
+  const offset = (page - 1) * limit;
+
+  const baseConditions = search
+    ? and(eq(summaries.userId, userId), like(videos.title, `%${search}%`))
+    : eq(summaries.userId, userId);
+
+  const [countResult, items] = await Promise.all([
+    db
+      .select({ total: count() })
+      .from(summaries)
+      .leftJoin(videos, eq(summaries.videoId, videos.videoId))
+      .where(baseConditions),
+    db
+      .select({
+        id: summaries.id,
+        videoId: summaries.videoId,
+        userId: summaries.userId,
+        summary: summaries.summary,
+        detailedSummary: summaries.detailedSummary,
+        createdAt: summaries.createdAt,
+        videoTitle: videos.title,
+        videoThumbnailUrl: videos.thumbnailUrl,
+        videoPublishedAt: videos.publishedAt,
+        videoDuration: videos.duration,
+        videoChannelId: videos.channelId,
+      })
+      .from(summaries)
+      .leftJoin(videos, eq(summaries.videoId, videos.videoId))
+      .where(baseConditions)
+      .orderBy(desc(summaries.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  return {
+    items,
+    total: countResult[0]?.total ?? 0,
+  };
 }
 
 export async function getSummariesGroupedByChannel(userId: number) {

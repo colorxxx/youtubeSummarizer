@@ -95,7 +95,7 @@ export function registerOAuthRoutes(app: Express) {
         maxAge: ONE_YEAR_MS,
       });
 
-      res.redirect(302, "/");
+      res.redirect(302, "/summaries");
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       const errorMessage = error instanceof Error ? error.message : String(error);

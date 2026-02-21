@@ -25,7 +25,7 @@ export default function Subscriptions() {
 
   const removeMutation = trpc.subscriptions.remove.useMutation({
     onSuccess: () => {
-      toast.success("Channel unsubscribed!");
+      toast.success("구독이 해제되었습니다");
       utils.subscriptions.list.invalidate();
       utils.dashboard.channelSummaries.invalidate();
     },
@@ -36,7 +36,7 @@ export default function Subscriptions() {
 
   const addMutation = trpc.subscriptions.add.useMutation({
     onSuccess: (data) => {
-      toast.success(data.message || "Channel subscribed!");
+      toast.success(data.message || "채널이 구독되었습니다!");
       utils.subscriptions.list.invalidate();
       utils.dashboard.channelSummaries.invalidate();
       setDialogOpen(false);
@@ -50,7 +50,7 @@ export default function Subscriptions() {
 
   const updateSettingsMutation = trpc.subscriptions.updateSettings.useMutation({
     onSuccess: () => {
-      toast.success("Channel settings updated!");
+      toast.success("채널 설정이 저장되었습니다");
       utils.subscriptions.list.invalidate();
       setSettingsOpen(false);
     },
@@ -67,7 +67,7 @@ export default function Subscriptions() {
       const results = await utils.client.youtube.searchChannels.query({ query: searchQuery });
       setSearchResults(results);
     } catch (error: any) {
-      toast.error(error.message || "Failed to search channels");
+      toast.error(error.message || "채널 검색에 실패했습니다");
     } finally {
       setIsSearching(false);
     }
@@ -98,8 +98,8 @@ export default function Subscriptions() {
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Please log in to manage your subscriptions</CardDescription>
+            <CardTitle>로그인 필요</CardTitle>
+            <CardDescription>구독을 관리하려면 로그인해주세요</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -111,25 +111,25 @@ export default function Subscriptions() {
       <div className="container py-8 max-w-6xl">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-4xl font-bold mb-2">My Subscriptions</h1>
-            <p className="text-muted-foreground">Manage your YouTube channel subscriptions</p>
+            <h1 className="text-4xl font-bold mb-2">내 구독 채널</h1>
+            <p className="text-muted-foreground">유튜브 채널 구독을 관리하세요</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button size="lg">
                 <Plus className="mr-2 h-5 w-5" />
-                Add Channel
+                채널 추가
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Add YouTube Channel</DialogTitle>
-                <DialogDescription>Search for a channel to subscribe</DialogDescription>
+                <DialogTitle>유튜브 채널 추가</DialogTitle>
+                <DialogDescription>구독할 채널을 검색하세요</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Search for channels..."
+                    placeholder="채널 이름으로 검색..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -197,7 +197,7 @@ export default function Subscriptions() {
                     }}
                   >
                     <SettingsIcon className="h-4 w-4 mr-2" />
-                    Settings ({sub.videoCount || 3} videos)
+                    설정 ({sub.videoCount || 3}개 영상)
                   </Button>
                   <Button
                     variant="destructive"
@@ -211,7 +211,7 @@ export default function Subscriptions() {
                     ) : (
                       <Trash2 className="h-4 w-4 mr-2" />
                     )}
-                    Unsubscribe
+                    구독 해제
                   </Button>
                 </CardContent>
               </Card>
@@ -222,13 +222,13 @@ export default function Subscriptions() {
             <CardContent className="space-y-4">
               <Youtube className="h-16 w-16 mx-auto text-muted-foreground" />
               <div>
-                <h3 className="text-xl font-semibold mb-2">No subscriptions yet</h3>
-                <p className="text-muted-foreground mb-6">Start by adding your favorite YouTube channels</p>
+                <h3 className="text-xl font-semibold mb-2">아직 구독 중인 채널이 없습니다</h3>
+                <p className="text-muted-foreground mb-6">좋아하는 유튜브 채널을 추가해보세요</p>
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                   <DialogTrigger asChild>
                     <Button size="lg">
                       <Plus className="mr-2 h-5 w-5" />
-                      Add Your First Channel
+                      첫 채널 추가하기
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -239,7 +239,7 @@ export default function Subscriptions() {
                     <div className="space-y-4">
                       <div className="flex gap-2">
                         <Input
-                          placeholder="Search for channels..."
+                          placeholder="채널 이름으로 검색..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -278,14 +278,14 @@ export default function Subscriptions() {
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Channel Settings</DialogTitle>
+            <DialogTitle>채널 설정</DialogTitle>
             <DialogDescription>
-              Configure how many recent videos to summarize for {settingsChannel?.channelName}
+              {settingsChannel?.channelName}의 요약할 최근 영상 수를 설정하세요
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="videoCount">Number of videos to summarize</Label>
+              <Label htmlFor="videoCount">요약할 영상 수</Label>
               <Select
                 value={videoCountInput.toString()}
                 onValueChange={(value) => setVideoCountInput(parseInt(value))}
@@ -296,25 +296,25 @@ export default function Subscriptions() {
                 <SelectContent>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                     <SelectItem key={num} value={num.toString()}>
-                      {num} video{num > 1 ? "s" : ""}
+                      {num}개
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                When new videos are published, the {videoCountInput} most recent will be summarized
+                새 영상이 게시되면 최근 {videoCountInput}개가 요약됩니다
               </p>
             </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setSettingsOpen(false)}>
-              Cancel
+              취소
             </Button>
             <Button onClick={handleUpdateSettings} disabled={updateSettingsMutation.isPending}>
               {updateSettingsMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : null}
-              Save
+              저장
             </Button>
           </div>
         </DialogContent>

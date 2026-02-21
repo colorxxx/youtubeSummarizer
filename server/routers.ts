@@ -258,10 +258,21 @@ export const appRouter = router({
   }),
 
   summaries: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      const { getUserSummaries } = await import("./db");
-      return getUserSummaries(ctx.user.id, 50);
-    }),
+    list: protectedProcedure
+      .input(
+        z.object({
+          page: z.number().min(1).default(1),
+          limit: z.number().min(1).max(50).default(10),
+          search: z.string().optional(),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const { getUserSummariesPaginated } = await import("./db");
+        const page = input?.page ?? 1;
+        const limit = input?.limit ?? 10;
+        const search = input?.search;
+        return getUserSummariesPaginated(ctx.user.id, page, limit, search);
+      }),
     delete: protectedProcedure
       .input(z.object({ summaryId: z.number() }))
       .mutation(async ({ ctx, input }) => {

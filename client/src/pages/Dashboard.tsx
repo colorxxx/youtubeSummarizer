@@ -73,9 +73,9 @@ export default function Dashboard() {
       <div className="mb-6 md:mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
+            <h1 className="text-2xl md:text-3xl font-bold">대시보드</h1>
             <p className="text-sm md:text-base text-muted-foreground mt-2">
-              View AI-generated summaries organized by channel
+              채널별로 정리된 AI 요약을 확인하세요
             </p>
           </div>
           <Button
@@ -86,12 +86,12 @@ export default function Dashboard() {
             {refreshMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Checking...
+                확인 중...
               </>
             ) : (
               <>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Check for New Videos
+                새 영상 확인
               </>
             )}
           </Button>
@@ -103,7 +103,7 @@ export default function Dashboard() {
           <CardContent className="pt-6 text-center">
             <Youtube className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground">
-              No summaries yet. Subscribe to channels and summaries will appear here!
+              아직 요약이 없습니다. 채널을 구독하면 여기에 요약이 표시됩니다!
             </p>
           </CardContent>
         </Card>
@@ -130,7 +130,7 @@ export default function Dashboard() {
                         <CardTitle className="text-lg md:text-xl truncate">{item.channel.channelName}</CardTitle>
                         <CardDescription className="text-xs md:text-sm">
                           {item.summaries.length > 0
-                            ? `${item.summaries.length} video${item.summaries.length > 1 ? "s" : ""} summarized`
+                            ? `${item.summaries.length}개 영상 요약됨`
                             : "요약 없음"}
                         </CardDescription>
                       </div>

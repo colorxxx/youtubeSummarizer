@@ -1,17 +1,38 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { Clock, FileText, Loader2, Trash2, Youtube } from "lucide-react";
+import { Clock, FileText, Loader2, Search, Trash2, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { formatDuration } from "@/lib/utils";
 import { Streamdown } from "streamdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { useEffect, useRef, useState } from "react";
 
 export default function Summaries() {
   const { user } = useAuth();
-  const { data: summaries, isLoading, refetch } = trpc.summaries.list.useQuery();
-  const { data: videos } = trpc.videos.recent.useQuery();
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const limit = 10;
+
+  const { data, isLoading, refetch } = trpc.summaries.list.useQuery({
+    page,
+    limit,
+    search: search || undefined,
+  });
+
   const deleteMutation = trpc.summaries.delete.useMutation({
     onSuccess: () => {
       toast.success("요약이 삭제되었습니다");
@@ -22,63 +43,105 @@ export default function Summaries() {
     },
   });
 
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchInput]);
+
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Please log in to view your summaries</CardDescription>
+            <CardTitle>로그인 필요</CardTitle>
+            <CardDescription>요약을 확인하려면 로그인해주세요</CardDescription>
           </CardHeader>
         </Card>
       </div>
     );
   }
 
-  // Create a map of videoId to video details
-  const videoMap = new Map(videos?.map((v) => [v.videoId, v]) || []);
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / limit);
+
+  const getPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (page > 3) pages.push("ellipsis");
+      const start = Math.max(2, page - 1);
+      const end = Math.min(totalPages - 1, page + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (page < totalPages - 2) pages.push("ellipsis");
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   return (
     <div className="container py-8 max-w-5xl">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Video Summaries</h1>
-        <p className="text-muted-foreground">AI-generated summaries of videos from your subscribed channels</p>
+        <h1 className="text-4xl font-bold mb-2">요약 목록</h1>
+        <p className="text-muted-foreground">
+          구독 채널의 AI 생성 영상 요약 {total > 0 && <span className="font-medium text-foreground">({total}개)</span>}
+        </p>
+      </div>
+
+      {/* Search */}
+      <div className="mb-6">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="영상 제목으로 검색..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="pl-10"
+          />
+        </div>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : summaries && summaries.length > 0 ? (
-        <div className="space-y-6">
-          {summaries.map((summary) => {
-            const video = videoMap.get(summary.videoId);
-            return (
+      ) : items.length > 0 ? (
+        <>
+          <div className="space-y-6">
+            {items.map((summary) => (
               <Card key={summary.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <CardHeader className="pb-4">
-                  <div className="flex gap-4">
-                    {video?.thumbnailUrl ? (
+                  <div className="flex flex-col md:flex-row gap-3 md:gap-4">
+                    {summary.videoThumbnailUrl ? (
                       <img
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        className="w-48 h-27 object-cover rounded-lg flex-shrink-0"
+                        src={summary.videoThumbnailUrl}
+                        alt={summary.videoTitle || ""}
+                        className="w-full md:w-48 h-auto md:h-27 object-cover rounded-lg flex-shrink-0"
                       />
                     ) : (
-                      <div className="w-48 h-27 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <div className="w-full md:w-48 h-27 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                         <Youtube className="h-12 w-12 text-primary" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="text-xl mb-2">
-                          {video ? (
+                        <CardTitle className="text-base md:text-xl mb-2">
+                          {summary.videoTitle ? (
                             <a
                               href={`https://youtube.com/watch?v=${summary.videoId}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="hover:text-primary transition-colors"
+                              className="hover:text-primary transition-colors break-words"
                             >
-                              {video.title}
+                              {summary.videoTitle}
                             </a>
                           ) : (
                             summary.videoId
@@ -99,24 +162,28 @@ export default function Summaries() {
                         </Button>
                       </div>
                       <CardDescription>
-                        {video && (
+                        {summary.videoDuration && (
                           <>
-                            {video.duration && (
-                              <>
-                                <Clock className="inline h-3.5 w-3.5 mr-1 align-text-bottom" />
-                                {formatDuration(video.duration)}
-                                {" • "}
-                              </>
-                            )}
-                            {new Date(video.publishedAt).toLocaleDateString("ko-KR", {
+                            <Clock className="inline h-3.5 w-3.5 mr-1 align-text-bottom" />
+                            {formatDuration(summary.videoDuration)}
+                            {" \u2022 "}
+                          </>
+                        )}
+                        {summary.videoPublishedAt && (
+                          <>
+                            {new Date(summary.videoPublishedAt).toLocaleDateString("ko-KR", {
                               year: "numeric",
                               month: "long",
                               day: "numeric",
                             })}
-                            {" • "}
+                            {" \u2022 "}
                           </>
                         )}
-                        Summarized on {new Date(summary.createdAt).toLocaleDateString()}
+                        {new Date(summary.createdAt).toLocaleDateString("ko-KR", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}에 요약됨
                       </CardDescription>
                     </div>
                   </div>
@@ -140,17 +207,60 @@ export default function Summaries() {
                   </Tabs>
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-8">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className={page <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  {getPageNumbers().map((p, i) =>
+                    p === "ellipsis" ? (
+                      <PaginationItem key={`ellipsis-${i}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={p}>
+                        <PaginationLink
+                          isActive={p === page}
+                          onClick={() => setPage(p)}
+                          className="cursor-pointer"
+                        >
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ),
+                  )}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      className={page >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
+        </>
       ) : (
         <Card className="text-center py-12">
           <CardContent className="space-y-4">
             <FileText className="h-16 w-16 mx-auto text-muted-foreground" />
             <div>
-              <h3 className="text-xl font-semibold mb-2">No summaries yet</h3>
+              <h3 className="text-xl font-semibold mb-2">
+                {search ? "검색 결과가 없습니다" : "아직 요약이 없습니다"}
+              </h3>
               <p className="text-muted-foreground">
-                Summaries will appear here once new videos are published from your subscribed channels
+                {search
+                  ? "다른 검색어를 입력해보세요"
+                  : "채널을 구독하면 새 영상의 요약이 여기에 표시됩니다"}
               </p>
             </div>
           </CardContent>
