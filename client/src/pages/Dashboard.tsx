@@ -15,7 +15,7 @@ import { VideoChatSheet } from "@/components/VideoChatSheet";
 export default function Dashboard() {
   const { data: channelData, isLoading, refetch } = trpc.dashboard.channelSummaries.useQuery();
   const [openChannels, setOpenChannels] = useState<Set<string>>(new Set());
-  const { getTaskForChannel } = useBackgroundTasks();
+  const { getTaskForChannel } = useBackgroundTasks(refetch);
   const deleteMutation = trpc.summaries.delete.useMutation({
     onSuccess: () => {
       toast.success("요약이 삭제되었습니다");
