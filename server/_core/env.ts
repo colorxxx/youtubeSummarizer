@@ -7,4 +7,5 @@ export const ENV = {
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   deepseekApiUrl: process.env.DEEPSEEK_API_URL ?? "https://api.deepseek.com",
   deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? "",
+  tavilyApiKey: process.env.TAVILY_API_KEY ?? "",
 };

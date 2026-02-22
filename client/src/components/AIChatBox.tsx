@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Loader2, Send, User, Sparkles } from "lucide-react";
+import { Globe, Loader2, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
@@ -31,6 +31,11 @@ export type AIChatBoxProps = {
    * Whether the AI is currently generating a response
    */
   isLoading?: boolean;
+
+  /**
+   * Whether the AI is currently searching the web
+   */
+  isSearching?: boolean;
 
   /**
    * Placeholder text for the input field
@@ -114,6 +119,7 @@ export function AIChatBox({
   messages,
   onSendMessage,
   isLoading = false,
+  isSearching = false,
   placeholder = "Type your message...",
   className,
   height = "600px",
@@ -292,8 +298,15 @@ export function AIChatBox({
                   <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
                     <Sparkles className="size-4 text-primary" />
                   </div>
-                  <div className="rounded-lg bg-muted px-4 py-2.5">
-                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  <div className="rounded-lg bg-muted px-4 py-2.5 flex items-center gap-2">
+                    {isSearching ? (
+                      <>
+                        <Globe className="size-4 animate-pulse text-blue-500" />
+                        <span className="text-sm text-muted-foreground">웹에서 검색 중...</span>
+                      </>
+                    ) : (
+                      <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    )}
                   </div>
                 </div>
               )}

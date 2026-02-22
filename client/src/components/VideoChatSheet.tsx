@@ -21,6 +21,7 @@ const SUGGESTED_PROMPTS = [
 export function VideoChatSheet({ videoId, videoTitle, open, onOpenChange }: VideoChatSheetProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<{ message: string; failedContent: string } | null>(null);
   const loadedVideoRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -58,6 +59,7 @@ export function VideoChatSheet({ videoId, videoTitle, open, onOpenChange }: Vide
   const sendStreamMessage = useCallback(async (content: string) => {
     setError(null);
     setIsStreaming(true);
+    setIsSearching(false);
 
     // Add assistant placeholder for streaming
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
@@ -105,7 +107,12 @@ export function VideoChatSheet({ videoId, videoTitle, open, onOpenChange }: Vide
             if (parsed.error) {
               throw new Error(parsed.error);
             }
+            if (parsed.searching) {
+              setIsSearching(true);
+              continue;
+            }
             if (parsed.content) {
+              setIsSearching(false);
               setMessages((prev) => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
@@ -138,6 +145,7 @@ export function VideoChatSheet({ videoId, videoTitle, open, onOpenChange }: Vide
       });
     } finally {
       setIsStreaming(false);
+      setIsSearching(false);
       abortRef.current = null;
     }
   }, [videoId]);
@@ -185,6 +193,7 @@ export function VideoChatSheet({ videoId, videoTitle, open, onOpenChange }: Vide
             messages={messages}
             onSendMessage={handleSendMessage}
             isLoading={isStreaming}
+            isSearching={isSearching}
             placeholder="영상에 대해 질문하세요..."
             height="100%"
             emptyStateMessage="이 영상에 대해 궁금한 점을 물어보세요"

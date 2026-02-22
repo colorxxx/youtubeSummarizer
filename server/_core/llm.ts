@@ -30,6 +30,7 @@ export type Message = {
   content: MessageContent | MessageContent[];
   name?: string;
   tool_call_id?: string;
+  tool_calls?: ToolCall[];
 };
 
 export type Tool = {
@@ -137,7 +138,7 @@ const normalizeContentPart = (
 };
 
 const normalizeMessage = (message: Message) => {
-  const { role, name, tool_call_id } = message;
+  const { role, name, tool_call_id, tool_calls } = message;
 
   if (role === "tool" || role === "function") {
     const content = ensureArray(message.content)
@@ -160,6 +161,7 @@ const normalizeMessage = (message: Message) => {
       role,
       name,
       content: contentParts[0].text,
+      ...(role === "assistant" && tool_calls ? { tool_calls } : {}),
     };
   }
 
@@ -167,6 +169,7 @@ const normalizeMessage = (message: Message) => {
     role,
     name,
     content: contentParts,
+    ...(role === "assistant" && tool_calls ? { tool_calls } : {}),
   };
 };
 
@@ -265,6 +268,8 @@ const normalizeResponseFormat = ({
 
 export type InvokeStreamParams = {
   messages: Message[];
+  tools?: Tool[];
+  toolChoice?: ToolChoice;
   maxTokens?: number;
 };
 
@@ -277,6 +282,15 @@ export async function invokeLLMStream(params: InvokeStreamParams): Promise<Respo
     stream: true,
     max_tokens: params.maxTokens ?? 8192,
   };
+
+  if (params.tools && params.tools.length > 0) {
+    payload.tools = params.tools;
+  }
+
+  const normalizedToolChoice = normalizeToolChoice(params.toolChoice, params.tools);
+  if (normalizedToolChoice) {
+    payload.tool_choice = normalizedToolChoice;
+  }
 
   const response = await fetch(resolveApiUrl(), {
     method: "POST",
