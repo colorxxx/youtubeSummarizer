@@ -185,12 +185,12 @@ export async function checkChannelVideos(userId: number, channelId: string) {
 
 /**
  * Start the daily cron job
- * Runs daily at 10:10 AM KST
+ * Runs daily at 11:00 AM KST
  */
 export function startDailyVideoCheckJob() {
-  // Run every day at 10:10 AM KST
+  // Run every day at 11:00 AM KST
   // Cron format: second minute hour day month weekday
-  cron.schedule("0 10 10 * * *", async () => {
+  cron.schedule("0 0 11 * * *", async () => {
     cronLog.info("Starting daily video check job...");
     try {
       const result = await checkNewVideos();
@@ -202,7 +202,7 @@ export function startDailyVideoCheckJob() {
     timezone: "Asia/Seoul"
   });
 
-  cronLog.info("Daily video check job scheduled (10:10 AM KST)");
+  cronLog.info("Daily video check job scheduled (11:00 AM KST)");
 }
 
 /**
