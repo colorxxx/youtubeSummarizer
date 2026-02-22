@@ -1,6 +1,9 @@
 import { invokeLLM } from "./_core/llm";
+import { createLogger } from "./_core/logger";
 import { getOrFetchTranscript } from "./db";
 import { parseDuration, getTargetSummaryLength } from "./videoUtils";
+
+const log = createLogger("Summarizer");
 
 /**
  * Generate AI summary for a YouTube video
@@ -15,11 +18,11 @@ export async function generateVideoSummary(
   try {
     // Try to get transcript (from DB cache or YouTube)
     const transcript = await getOrFetchTranscript(videoId);
-    
+
     // Prepare content for summarization
     // Use transcript if available, otherwise fall back to description
     const videoContent = transcript.available && transcript.text ? transcript.text : (description || title);
-    
+
     if (!videoContent || videoContent.trim().length === 0) {
       return {
         brief: "No content available to summarize.",
@@ -67,7 +70,7 @@ export async function generateVideoSummary(
 
     return { brief, detailed };
   } catch (error) {
-    console.error("Error generating video summary:", error);
+    log.error("Error generating video summary:", error);
     return {
       brief: "Failed to generate summary due to an error.",
       detailed: "Failed to generate summary due to an error.",
@@ -88,7 +91,7 @@ export async function generateBatchSummaries(
       const summary = await generateVideoSummary(video.videoId, video.title, video.description || "", video.duration);
       summaries.set(video.videoId, summary);
     } catch (error) {
-      console.error(`Failed to summarize video ${video.videoId}:`, error);
+      log.error(`Failed to summarize video ${video.videoId}:`, error);
       summaries.set(video.videoId, {
         brief: "Summary generation failed.",
         detailed: "Summary generation failed.",

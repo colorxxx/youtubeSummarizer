@@ -9,6 +9,9 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { initializeCronJobs } from "../cronJobs";
 import { handleChatStream } from "../chatStream";
+import { createLogger } from "./logger";
+
+const log = createLogger("Server");
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -59,11 +62,11 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    log.warn(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   server.listen(port, "0.0.0.0", () => {
-    console.log(`Server running on port ${port}`);
+    log.info(`Server running on port ${port}`);
 
     // Initialize cron jobs after server starts
     initializeCronJobs();

@@ -1,6 +1,9 @@
 import axios from "axios";
 import { YoutubeTranscript } from "youtube-transcript";
+import { createLogger } from "./_core/logger";
 import { parseDuration } from "./videoUtils";
+
+const log = createLogger("YouTube");
 
 /**
  * YouTube Data API v3 integration helper
@@ -64,7 +67,7 @@ export async function searchChannels(query: string, maxResults: number = 10): Pr
 
     return channels;
   } catch (error) {
-    console.error("Error searching YouTube channels:", error);
+    log.error("Error searching YouTube channels:", error);
     throw new Error("Failed to search YouTube channels");
   }
 }
@@ -95,7 +98,7 @@ export async function getChannelDetails(channelId: string): Promise<YouTubeChann
       subscriberCount: item.statistics?.subscriberCount,
     };
   } catch (error) {
-    console.error("Error fetching channel details:", error);
+    log.error("Error fetching channel details:", error);
     throw new Error("Failed to fetch channel details");
   }
 }
@@ -184,7 +187,7 @@ export async function getChannelVideos(
 
     return validVideos;
   } catch (error) {
-    console.error("Error fetching channel videos:", error);
+    log.error("Error fetching channel videos:", error);
     throw new Error("Failed to fetch channel videos");
   }
 }
@@ -196,18 +199,18 @@ export async function getChannelVideos(
 export async function getVideoTranscript(videoId: string): Promise<VideoTranscript> {
   try {
     const transcript = await YoutubeTranscript.fetchTranscript(videoId);
-    
+
     if (!transcript || transcript.length === 0) {
       return { text: "", available: false };
     }
 
     // Combine all transcript segments into a single text
     const fullText = transcript.map((item: any) => item.text).join(" ");
-    
+
     return { text: fullText, available: true };
   } catch (error) {
     // Transcript not available or error occurred
-    console.log(`Transcript not available for video ${videoId}:`, error instanceof Error ? error.message : "Unknown error");
+    log.info(`Transcript not available for video ${videoId}:`, error instanceof Error ? error.message : "Unknown error");
     return { text: "", available: false };
   }
 }

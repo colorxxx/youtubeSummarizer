@@ -1,6 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import type { Message } from "./_core/llm";
+import { createLogger } from "./_core/logger";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
@@ -11,6 +12,8 @@ import {
   failTask,
   getRecentTasks,
 } from "./backgroundTasks";
+
+const log = createLogger("Router");
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -41,15 +44,15 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { addSubscription, isChannelSubscribed, getUserSettings } = await import("./db");
-        
+
         const alreadySubscribed = await isChannelSubscribed(ctx.user.id, input.channelId);
         if (alreadySubscribed) {
           throw new Error("Already subscribed to this channel");
         }
-        
+
         const settings = await getUserSettings(ctx.user.id);
         const videoCount = settings?.videoCount || 3;
-        
+
         await addSubscription({
           userId: ctx.user.id,
           channelId: input.channelId,
@@ -57,7 +60,7 @@ export const appRouter = router({
           channelThumbnail: input.channelThumbnail || null,
           videoCount,
         });
-        
+
         // Background processing with task tracking
         (async () => {
           const { saveVideo, saveSummary } = await import("./db");
@@ -70,7 +73,7 @@ export const appRouter = router({
             const videos = await getChannelVideos(input.channelId, videoCount);
 
             if (videos.length === 0) {
-              console.log(`No videos to process for channel ${input.channelId}`);
+              log.info(`No videos to process for channel ${input.channelId}`);
               return;
             }
 
@@ -105,20 +108,20 @@ export const appRouter = router({
 
                 updateTaskProgress(taskId, i + 1);
               } catch (error) {
-                console.error(`Error processing video ${video.videoId}:`, error);
+                log.error(`Error processing video ${video.videoId}:`, error);
               }
             }
 
             completeTask(taskId);
-            console.log(`Background processing complete for channel ${input.channelId}`);
+            log.info(`Background processing complete for channel ${input.channelId}`);
           } catch (error) {
-            console.error(`Background processing failed:`, error);
+            log.error("Background processing failed:", error);
             if (taskId) {
               failTask(taskId, error instanceof Error ? error.message : "Unknown error");
             }
           }
         })();
-        
+
         return { success: true, message: "Channel subscribed! Summaries are being generated." };
       }),
     remove: protectedProcedure
@@ -148,7 +151,7 @@ export const appRouter = router({
         const result = await checkNewVideos();
         return result;
       } catch (error) {
-        console.error("[Dashboard] Error refreshing videos:", error);
+        log.error("Error refreshing videos:", error);
         throw new Error("Failed to check for new videos");
       }
     }),
@@ -177,7 +180,7 @@ export const appRouter = router({
             const videos = await getChannelVideos(input.channelId, videoCount);
 
             if (videos.length === 0) {
-              console.log(`[ChannelRefresh] No videos found for channel ${input.channelId}`);
+              log.info(`No videos found for channel ${input.channelId}`);
               return;
             }
 
@@ -220,16 +223,16 @@ export const appRouter = router({
                   detailedSummary: detailed,
                 });
               } catch (error) {
-                console.error(`[ChannelRefresh] Error generating summary for video ${video.videoId}:`, error);
+                log.error(`Error generating summary for video ${video.videoId}:`, error);
               }
 
               updateTaskProgress(taskId, i + 1);
             }
 
             completeTask(taskId);
-            console.log(`[ChannelRefresh] Completed for channel ${input.channelId}`);
+            log.info(`Channel refresh completed for ${input.channelId}`);
           } catch (error) {
-            console.error(`[ChannelRefresh] Failed:`, error);
+            log.error("Channel refresh failed:", error);
             if (taskId) {
               failTask(taskId, error instanceof Error ? error.message : "Unknown error");
             }

@@ -2,6 +2,9 @@ import { eq, desc, and, inArray, like, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, InsertSubscription, InsertVideo, InsertSummary, InsertUserSettings, users, subscriptions, videos, summaries, userSettings, chatMessages } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { createLogger } from './_core/logger';
+
+const log = createLogger("Database");
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -10,7 +13,7 @@ export async function getDb() {
     try {
       _db = drizzle(process.env.DATABASE_URL);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      log.warn("Failed to connect:", error);
       _db = null;
     }
   }
@@ -24,7 +27,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
+    log.warn("Cannot upsert user: database not available");
     return;
   }
 
@@ -71,7 +74,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       set: updateSet,
     });
   } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
+    log.error("Failed to upsert user:", error);
     throw error;
   }
 }
@@ -79,7 +82,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
+    log.warn("Cannot get user: database not available");
     return undefined;
   }
 
@@ -148,7 +151,7 @@ export async function saveVideo(video: InsertVideo) {
   } catch (error: any) {
     const isDup = error.code === 'ER_DUP_ENTRY' || error?.cause?.code === 'ER_DUP_ENTRY';
     if (isDup) {
-      console.log(`Video ${video.videoId} already exists, skipping`);
+      log.info(`Video ${video.videoId} already exists, skipping`);
     } else {
       throw error;
     }
@@ -322,11 +325,11 @@ export async function getAllUsersWithEmailEnabled() {
 export async function getAllSubscriptions() {
   const db = await getDb();
   if (!db) return [];
-  
+
   try {
     return await db.select().from(subscriptions);
   } catch (error) {
-    console.error("[Database] Error getting all subscriptions:", error);
+    log.error("Error getting all subscriptions:", error);
     return [];
   }
 }
@@ -375,7 +378,7 @@ export async function getVideoByVideoId(videoId: string) {
     const result = await db.select().from(videos).where(eq(videos.videoId, videoId)).limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.error("[Database] Error getting video by videoId:", error);
+    log.error("Error getting video by videoId:", error);
     return undefined;
   }
 }
@@ -407,9 +410,9 @@ export async function getOrFetchTranscript(videoId: string): Promise<{ text: str
 
   try {
     await db.update(videos).set({ transcript: textToStore }).where(eq(videos.videoId, videoId));
-    console.log(`[Transcript] Cached transcript for ${videoId} (${textToStore.length} chars)`);
+    log.info(`Cached transcript for ${videoId} (${textToStore.length} chars)`);
   } catch (error) {
-    console.error(`[Transcript] Failed to cache transcript for ${videoId}:`, error);
+    log.error(`Failed to cache transcript for ${videoId}:`, error);
   }
 
   return fetched;
