@@ -183,105 +183,18 @@ export async function checkChannelVideos(userId: number, channelId: string) {
  * Runs daily at 9 AM KST
  */
 export function startDailyVideoCheckJob() {
-  // Run every day at 9:00 AM KST (0:00 AM UTC)
+  // Run every day at 9:00 AM KST
   // Cron format: second minute hour day month weekday
-  cron.schedule("0 0 0 * * *", async () => {
+  cron.schedule("0 0 9 * * *", async () => {
     console.log("[Cron] Starting daily video check job...");
-    
     try {
-      // Get all subscriptions from all users
-      const allSubscriptions = await getAllSubscriptions();
-      
-      if (!allSubscriptions || allSubscriptions.length === 0) {
-        console.log("[Cron] No subscriptions found");
-        return;
-      }
-
-      console.log(`[Cron] Found ${allSubscriptions.length} subscriptions to check`);
-
-      // Group subscriptions by channel to avoid duplicate API calls
-      const channelMap = new Map<string, typeof allSubscriptions>();
-      for (const sub of allSubscriptions) {
-        if (!channelMap.has(sub.channelId)) {
-          channelMap.set(sub.channelId, []);
-        }
-        channelMap.get(sub.channelId)!.push(sub);
-      }
-
-      console.log(`[Cron] Checking ${channelMap.size} unique channels`);
-
-      // Check each channel for new videos
-      for (const [channelId, subs] of Array.from(channelMap.entries())) {
-        try {
-          // Get videos published in the last 24 hours
-          const yesterday = new Date();
-          yesterday.setDate(yesterday.getDate() - 1);
-          
-          const videos = await getChannelVideos(channelId, 10, yesterday);
-          
-          if (videos.length === 0) {
-            console.log(`[Cron] No new videos for channel ${channelId}`);
-            continue;
-          }
-
-          console.log(`[Cron] Found ${videos.length} new videos for channel ${channelId}`);
-
-          // Process each new video
-          for (const video of videos) {
-            // Check if we already have this video
-            const existingVideo = await getVideoByVideoId(video.videoId);
-            if (existingVideo) {
-              console.log(`[Cron] Video ${video.videoId} already exists, skipping`);
-              continue;
-            }
-
-            // Save video to database
-            await saveVideo({
-              videoId: video.videoId,
-              channelId: video.channelId,
-              title: video.title,
-              description: video.description,
-              publishedAt: video.publishedAt,
-              thumbnailUrl: video.thumbnailUrl,
-              duration: video.duration,
-            });
-
-            // Generate summaries for each user subscribed to this channel
-            for (const sub of subs) {
-              try {
-                console.log(`[Cron] Generating summary for video ${video.videoId}, user ${sub.userId}`);
-                
-                const { brief, detailed } = await generateVideoSummary(
-                  video.videoId,
-                  video.title,
-                  video.description,
-                  video.duration
-                );
-
-                await saveSummary({
-                  videoId: video.videoId,
-                  userId: sub.userId,
-                  summary: brief,
-                  detailedSummary: detailed,
-                });
-
-                console.log(`[Cron] Summary saved for video ${video.videoId}, user ${sub.userId}`);
-              } catch (error) {
-                console.error(`[Cron] Error generating summary for video ${video.videoId}, user ${sub.userId}:`, error);
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`[Cron] Error processing channel ${channelId}:`, error);
-        }
-      }
-
-      console.log("[Cron] Daily video check job completed");
+      const result = await checkNewVideos();
+      console.log("[Cron] Daily video check job completed:", result.message);
     } catch (error) {
       console.error("[Cron] Error in daily video check job:", error);
     }
   }, {
-    timezone: "Asia/Seoul" // Set timezone to Korea
+    timezone: "Asia/Seoul"
   });
 
   console.log("[Cron] Daily video check job scheduled (9:00 AM KST)");

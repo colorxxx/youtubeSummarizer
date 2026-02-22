@@ -171,7 +171,16 @@ export async function getVideosByIds(videoIds: string[]) {
   const db = await getDb();
   if (!db || videoIds.length === 0) return [];
 
-  return db.select().from(videos).where(inArray(videos.videoId, videoIds));
+  return db.select({
+    id: videos.id,
+    videoId: videos.videoId,
+    channelId: videos.channelId,
+    title: videos.title,
+    description: videos.description,
+    publishedAt: videos.publishedAt,
+    thumbnailUrl: videos.thumbnailUrl,
+    duration: videos.duration,
+  }).from(videos).where(inArray(videos.videoId, videoIds));
 }
 
 export async function saveSummary(summary: InsertSummary) {
