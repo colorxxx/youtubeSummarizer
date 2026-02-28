@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { sdk } from "./_core/sdk";
 import { getChatHistory, saveChatMessage, getUserSummaryForVideo, getVideoByVideoId } from "./db";
-import { invokeLLMStream } from "./_core/llm";
+import { invokeLLMStream, selectProviderForUser } from "./_core/llm";
 import type { Message, ToolCall } from "./_core/llm";
 import { buildChatMessages, buildSystemPrompt } from "./chatContext";
 import { CHAT_TOOLS, executeToolCall } from "./webSearch";
@@ -123,11 +123,14 @@ export async function handleChatStream(req: Request, res: Response) {
       return;
     }
 
+    // Determine provider for this user
+    const provider = await selectProviderForUser(user.id, user.email ?? null);
+
     // Build system prompt with transcript
-    const systemContent = await buildSystemPrompt(video, summary, videoId);
+    const systemContent = await buildSystemPrompt(video, summary, videoId, provider);
 
     // Build messages with token budget management
-    const llmMessages: Message[] = await buildChatMessages(systemContent, history, message);
+    const llmMessages: Message[] = await buildChatMessages(systemContent, history, message, provider);
 
     // Save user message to DB
     await saveChatMessage(user.id, videoId, "user", message);
@@ -147,6 +150,7 @@ export async function handleChatStream(req: Request, res: Response) {
         messages: llmMessages,
         tools: isLastRound ? undefined : CHAT_TOOLS,
         toolChoice: isLastRound ? undefined : "auto",
+        provider,
       });
 
       if (!llmResponse.body) {

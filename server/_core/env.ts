@@ -7,5 +7,9 @@ export const ENV = {
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   deepseekApiUrl: process.env.DEEPSEEK_API_URL ?? "https://api.deepseek.com",
   deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? "",
+  qwenApiUrl: process.env.QWEN_API_URL ?? "https://dashscope.aliyuncs.com/compatible-mode",
+  qwenApiKey: process.env.QWEN_API_KEY ?? "",
+  premiumEmail: process.env.PREMIUM_EMAIL ?? "chicider@gmail.com",
+  monthlyFreeLimit: Number(process.env.MONTHLY_FREE_LIMIT ?? "1000"),
   tavilyApiKey: process.env.TAVILY_API_KEY ?? "",
 };

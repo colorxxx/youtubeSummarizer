@@ -1,4 +1,5 @@
-const INPUT_TOKEN_BUDGET = 50000; // 64K context - 8K output - 6K safety margin
+import type { LLMProvider } from "./_core/llm";
+import { getContextLimits } from "./_core/llm";
 
 type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
@@ -6,10 +7,12 @@ export async function buildSystemPrompt(
   video: { title: string; description: string | null },
   summary: { summary: string; detailedSummary?: string | null } | null,
   videoId: string,
+  provider: LLMProvider = "qwen",
 ): Promise<string> {
   const { getOrFetchTranscript } = await import("./db");
   const transcriptResult = await getOrFetchTranscript(videoId);
   const transcript = transcriptResult.available ? transcriptResult.text : "";
+  const limits = getContextLimits(provider);
 
   return [
     "당신은 유튜브 영상에 대해 질문에 답변하는 AI 어시스턴트입니다.",
@@ -24,10 +27,10 @@ export async function buildSystemPrompt(
     "",
     "[영상 정보]",
     `제목: ${video.title}`,
-    video.description ? `설명: ${video.description.slice(0, 2000)}` : "",
+    video.description ? `설명: ${video.description.slice(0, limits.description)}` : "",
     summary ? `요약: ${summary.summary}` : "",
     summary?.detailedSummary ? `상세 요약: ${summary.detailedSummary}` : "",
-    transcript ? `\n[자막 원본]\n${transcript.slice(0, 30000)}` : "",
+    transcript ? `\n[자막 원본]\n${transcript.slice(0, limits.chatTranscript)}` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -40,7 +43,11 @@ export async function buildChatMessages(
   systemContent: string,
   history: { role: string; content: string }[],
   userMessage: string,
+  provider: LLMProvider = "qwen",
 ): Promise<ChatMsg[]> {
+  const limits = getContextLimits(provider);
+  const INPUT_TOKEN_BUDGET = limits.chatTokenBudget;
+
   const systemTokens = estimateTokens(systemContent);
   const userTokens = estimateTokens(userMessage);
   const budgetForHistory = INPUT_TOKEN_BUDGET - systemTokens - userTokens;
@@ -93,7 +100,7 @@ export async function buildChatMessages(
           { role: "user", content: compactPrompt },
         ],
         maxTokens: 500,
-      });
+      }, provider);
 
       compactSummary =
         typeof compactResult.choices[0]?.message?.content === "string"

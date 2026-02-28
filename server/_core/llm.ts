@@ -1,5 +1,7 @@
 import { ENV } from "./env";
 
+export type LLMProvider = "qwen" | "deepseek";
+
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
 export type TextContent = {
@@ -212,12 +214,56 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  `${ENV.deepseekApiUrl.replace(/\/$/, "")}/v1/chat/completions`;
+function getProviderConfig(provider: LLMProvider) {
+  if (provider === "qwen") {
+    return {
+      apiUrl: `${ENV.qwenApiUrl.replace(/\/$/, "")}/v1/chat/completions`,
+      apiKey: ENV.qwenApiKey,
+      model: "qwen3.5-flash",
+    };
+  }
+  return {
+    apiUrl: `${ENV.deepseekApiUrl.replace(/\/$/, "")}/v1/chat/completions`,
+    apiKey: ENV.deepseekApiKey,
+    model: "deepseek-chat",
+  };
+}
 
-const assertApiKey = () => {
-  if (!ENV.deepseekApiKey) {
-    throw new Error("DEEPSEEK_API_KEY is not configured");
+export function getContextLimits(provider: LLMProvider) {
+  if (provider === "qwen") {
+    return {
+      briefTranscript: 100_000,
+      detailedTranscript: 200_000,
+      chatTranscript: 500_000,
+      chatTokenBudget: 900_000,
+      description: 5_000,
+    };
+  }
+  return {
+    briefTranscript: 3_000,
+    detailedTranscript: 5_000,
+    chatTranscript: 30_000,
+    chatTokenBudget: 50_000,
+    description: 2_000,
+  };
+}
+
+export async function selectProviderForUser(
+  userId: number,
+  userEmail: string | null,
+): Promise<LLMProvider> {
+  if (!ENV.qwenApiKey) return "deepseek";
+  if (userEmail === ENV.premiumEmail) return "qwen";
+
+  const { getMonthlyUserSummaryCount } = await import("../db");
+  const count = await getMonthlyUserSummaryCount(userId);
+  return count >= ENV.monthlyFreeLimit ? "deepseek" : "qwen";
+}
+
+const assertApiKey = (provider: LLMProvider = "deepseek") => {
+  const config = getProviderConfig(provider);
+  if (!config.apiKey) {
+    throw new Error(`${provider.toUpperCase()} API key is not configured`);
   }
 };
 
@@ -271,13 +317,16 @@ export type InvokeStreamParams = {
   tools?: Tool[];
   toolChoice?: ToolChoice;
   maxTokens?: number;
+  provider?: LLMProvider;
 };
 
 export async function invokeLLMStream(params: InvokeStreamParams): Promise<Response> {
-  assertApiKey();
+  const provider = params.provider ?? "qwen";
+  assertApiKey(provider);
+  const config = getProviderConfig(provider);
 
   const payload: Record<string, unknown> = {
-    model: "deepseek-chat",
+    model: config.model,
     messages: params.messages.map(normalizeMessage),
     stream: true,
     max_tokens: params.maxTokens ?? 8192,
@@ -292,11 +341,11 @@ export async function invokeLLMStream(params: InvokeStreamParams): Promise<Respo
     payload.tool_choice = normalizedToolChoice;
   }
 
-  const response = await fetch(resolveApiUrl(), {
+  const response = await fetch(config.apiUrl, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.deepseekApiKey}`,
+      authorization: `Bearer ${config.apiKey}`,
     },
     body: JSON.stringify(payload),
   });
@@ -304,15 +353,16 @@ export async function invokeLLMStream(params: InvokeStreamParams): Promise<Respo
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(
-      `LLM stream invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+      `LLM stream invoke failed (${provider}): ${response.status} ${response.statusText} – ${errorText}`
     );
   }
 
   return response;
 }
 
-export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
+export async function invokeLLM(params: InvokeParams, provider: LLMProvider = "qwen"): Promise<InvokeResult> {
+  assertApiKey(provider);
+  const config = getProviderConfig(provider);
 
   const {
     messages,
@@ -326,7 +376,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "deepseek-chat",
+    model: config.model,
     messages: messages.map(normalizeMessage),
   };
 
@@ -355,11 +405,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
+  const response = await fetch(config.apiUrl, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.deepseekApiKey}`,
+      authorization: `Bearer ${config.apiKey}`,
     },
     body: JSON.stringify(payload),
   });
@@ -367,7 +417,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+      `LLM invoke failed (${provider}): ${response.status} ${response.statusText} – ${errorText}`
     );
   }
 

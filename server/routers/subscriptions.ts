@@ -43,6 +43,7 @@ export const subscriptionsRouter = router({
         channelId: input.channelId,
         channelName: input.channelName,
         videos,
+        userEmail: ctx.user.email,
       });
 
       return { success: true, message: "Channel subscribed! Summaries are being generated." };

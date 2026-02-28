@@ -65,6 +65,7 @@ export const directSummaryRouter = router({
         channelName: "직접 요약",
         videos: [videoDetails],
         source: "direct",
+        userEmail: ctx.user.email,
       });
 
       return { success: true, message: "요약을 생성 중입니다", videoId };

@@ -1,4 +1,4 @@
-import { eq, desc, and, like, count } from "drizzle-orm";
+import { eq, desc, and, like, count, gte } from "drizzle-orm";
 import { InsertSummary, summaries, videos } from "../../drizzle/schema";
 import { getDb } from './connection';
 import { getUserSubscriptions } from './subscriptions';
@@ -167,4 +167,23 @@ export async function deleteSummary(userId: number, summaryId: number) {
   await db.delete(summaries).where(
     and(eq(summaries.id, summaryId), eq(summaries.userId, userId))
   );
+}
+
+export async function getMonthlyUserSummaryCount(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const result = await db
+    .select({ total: count() })
+    .from(summaries)
+    .where(and(
+      eq(summaries.userId, userId),
+      gte(summaries.createdAt, startOfMonth),
+    ));
+
+  return result[0]?.total ?? 0;
 }

@@ -42,6 +42,7 @@ export const dashboardRouter = router({
         channelName: channelName,
         videos,
         skipExisting: true,
+        userEmail: ctx.user.email,
       });
 
       return { success: true, message: "새로고침을 시작했습니다" };

@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { getAllSubscriptions, getSubscription, saveVideo, saveSummary, getVideoByVideoId } from "./db";
 import { getChannelVideos } from "./youtube";
 import { generateVideoSummary } from "./summarizer";
+import { selectProviderForUser } from "./_core/llm";
 import { createLogger } from "./_core/logger";
 
 const videoCheckLog = createLogger("VideoCheck");
@@ -79,13 +80,15 @@ export async function checkNewVideos() {
           // Generate summaries for each user subscribed to this channel
           for (const sub of subs) {
             try {
-              videoCheckLog.info(`Generating summary for video ${video.videoId}, user ${sub.userId}`);
+              const provider = await selectProviderForUser(sub.userId, null);
+              videoCheckLog.info(`Generating summary for video ${video.videoId}, user ${sub.userId} (provider: ${provider})`);
 
               const { brief, detailed } = await generateVideoSummary(
                 video.videoId,
                 video.title,
                 video.description,
-                video.duration
+                video.duration,
+                provider,
               );
 
               await saveSummary({
@@ -158,11 +161,13 @@ export async function checkChannelVideos(userId: number, channelId: string) {
     }
 
     try {
+      const provider = await selectProviderForUser(userId, null);
       const { brief, detailed } = await generateVideoSummary(
         video.videoId,
         video.title,
         video.description,
-        video.duration
+        video.duration,
+        provider,
       );
 
       await saveSummary({

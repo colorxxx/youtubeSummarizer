@@ -114,12 +114,13 @@ export interface ProcessVideoOptions {
   videos: VideoInfo[];
   skipExisting?: boolean;
   source?: "subscription" | "direct";
+  userEmail?: string | null;
 }
 
 const log = createLogger("BackgroundTasks");
 
 export function processVideosInBackground(options: ProcessVideoOptions): void {
-  const { userId, channelId, channelName, videos, skipExisting = false, source } = options;
+  const { userId, channelId, channelName, videos, skipExisting = false, source, userEmail } = options;
 
   if (videos.length === 0) {
     log.info(`No videos to process for channel ${channelId}`);
@@ -132,6 +133,9 @@ export function processVideosInBackground(options: ProcessVideoOptions): void {
     try {
       const { saveVideo, saveSummary, getVideoByVideoId, getUserSummaryForVideo } = await import("./db");
       const { generateVideoSummary } = await import("./summarizer");
+      const { selectProviderForUser } = await import("./_core/llm");
+      const provider = await selectProviderForUser(userId, userEmail ?? null);
+      log.info(`Using LLM provider: ${provider} for user ${userId}`);
 
       for (let i = 0; i < videos.length; i++) {
         const video = videos[i];
@@ -172,7 +176,8 @@ export function processVideosInBackground(options: ProcessVideoOptions): void {
             video.videoId,
             video.title,
             video.description,
-            video.duration
+            video.duration,
+            provider,
           );
 
           await saveSummary({
