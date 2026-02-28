@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { createLogger } from "./_core/logger";
 
 export interface BackgroundTask {
   id: string;
@@ -95,3 +96,105 @@ function cleanupOldTasks(): void {
 
 // Start cleanup interval
 setInterval(cleanupOldTasks, CLEANUP_INTERVAL);
+
+export interface VideoInfo {
+  videoId: string;
+  channelId: string;
+  title: string;
+  description: string;
+  publishedAt: Date;
+  thumbnailUrl: string;
+  duration?: string;
+}
+
+export interface ProcessVideoOptions {
+  userId: number;
+  channelId: string;
+  channelName: string;
+  videos: VideoInfo[];
+  skipExisting?: boolean;
+  source?: "subscription" | "direct";
+}
+
+const log = createLogger("BackgroundTasks");
+
+export function processVideosInBackground(options: ProcessVideoOptions): void {
+  const { userId, channelId, channelName, videos, skipExisting = false, source } = options;
+
+  if (videos.length === 0) {
+    log.info(`No videos to process for channel ${channelId}`);
+    return;
+  }
+
+  const taskId = createTask(userId, channelId, channelName, videos.length);
+
+  (async () => {
+    try {
+      const { saveVideo, saveSummary, getVideoByVideoId, getUserSummaryForVideo } = await import("./db");
+      const { generateVideoSummary } = await import("./summarizer");
+
+      for (let i = 0; i < videos.length; i++) {
+        const video = videos[i];
+
+        try {
+          if (skipExisting) {
+            const existing = await getVideoByVideoId(video.videoId);
+            if (existing) {
+              const existingSummary = await getUserSummaryForVideo(userId, video.videoId);
+              if (existingSummary) {
+                updateTaskProgress(taskId, i + 1);
+                continue;
+              }
+            } else {
+              await saveVideo({
+                videoId: video.videoId,
+                channelId: video.channelId,
+                title: video.title,
+                description: video.description,
+                publishedAt: video.publishedAt,
+                thumbnailUrl: video.thumbnailUrl,
+                duration: video.duration,
+              });
+            }
+          } else {
+            await saveVideo({
+              videoId: video.videoId,
+              channelId: video.channelId,
+              title: video.title,
+              description: video.description,
+              publishedAt: video.publishedAt,
+              thumbnailUrl: video.thumbnailUrl,
+              duration: video.duration,
+            });
+          }
+
+          const summaryResult = await generateVideoSummary(
+            video.videoId,
+            video.title,
+            video.description,
+            video.duration
+          );
+
+          await saveSummary({
+            videoId: video.videoId,
+            userId,
+            summary: summaryResult.brief,
+            detailedSummary: summaryResult.detailed,
+            ...(source === "direct" ? { source: "direct" as const } : {}),
+          });
+
+          updateTaskProgress(taskId, i + 1);
+        } catch (error) {
+          log.error(`Error processing video ${video.videoId}:`, error);
+          updateTaskProgress(taskId, i + 1);
+        }
+      }
+
+      completeTask(taskId);
+      log.info(`Background processing complete for ${channelName} (${channelId})`);
+    } catch (error) {
+      log.error("Background processing failed:", error);
+      failTask(taskId, error instanceof Error ? error.message : "Unknown error");
+    }
+  })();
+}

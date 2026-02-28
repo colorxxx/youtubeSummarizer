@@ -1,17 +1,14 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Youtube, Clock, Loader2, RefreshCw, Trash2, MessageCircle, Bookmark, ListPlus } from "lucide-react";
+import { ChevronDown, Youtube, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { Streamdown } from "streamdown";
 import { useState } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { formatDuration } from "@/lib/utils";
 import { useBackgroundTasks } from "@/hooks/useBackgroundTasks";
 import { VideoChatSheet } from "@/components/VideoChatSheet";
 import { PlaylistAddDialog } from "@/components/PlaylistAddDialog";
+import { VideoSummaryCard } from "@/components/VideoSummaryCard";
 
 export default function Dashboard() {
   const { data: channelData, isLoading, refetch } = trpc.dashboard.channelSummaries.useQuery();
@@ -42,7 +39,6 @@ export default function Dashboard() {
     onSuccess: (data) => {
       toast.info(data.message || "백그라운드에서 처리 중...");
       setRefreshingChannelId(null);
-      // Refetch is handled by background task completion
     },
     onError: (error) => {
       toast.error("채널 새로고침 실패: " + error.message);
@@ -197,109 +193,34 @@ export default function Dashboard() {
                     </CardContent>
                   ) : (
                     <CardContent className="space-y-4 md:space-y-6 pt-4">
-                      {item.summaries.map((summary) => (
-                      <Card key={summary.videoId} className="border-2">
-                        <CardHeader className="pb-3">
-                          <div className="flex flex-col md:flex-row gap-3 md:gap-4">
-                            {summary.video?.thumbnailUrl && (
-                              <img
-                                src={summary.video.thumbnailUrl}
-                                alt={summary.video.title}
-                                className="w-full md:w-48 h-auto md:h-27 object-cover rounded-lg flex-shrink-0"
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <CardTitle className="text-base md:text-lg mb-2">
-                                  <a
-                                    href={`https://youtube.com/watch?v=${summary.videoId}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="hover:text-primary transition-colors break-words"
-                                  >
-                                    {summary.video?.title}
-                                  </a>
-                                </CardTitle>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                    onClick={() => setChatVideo({ videoId: summary.videoId, title: summary.video?.title || "" })}
-                                    title="AI 채팅"
-                                  >
-                                    <MessageCircle className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className={`h-8 w-8 ${bookmarkedSet.has(summary.videoId) ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-yellow-500"}`}
-                                    onClick={() => bookmarkMutation.mutate({ videoId: summary.videoId })}
-                                    disabled={bookmarkMutation.isPending}
-                                    title="북마크"
-                                  >
-                                    <Bookmark className={`h-4 w-4 ${bookmarkedSet.has(summary.videoId) ? "fill-current" : ""}`} />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                    onClick={() => setPlaylistVideo({ videoId: summary.videoId, title: summary.video?.title || "" })}
-                                    title="재생목록에 추가"
-                                  >
-                                    <ListPlus className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                    disabled={deleteMutation.isPending}
-                                    onClick={() => {
-                                      if (confirm("이 요약을 삭제하시겠습니까?")) {
-                                        deleteMutation.mutate({ summaryId: summary.id });
-                                      }
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-muted-foreground">
-                                {summary.video?.duration && (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="h-3 w-3 md:h-4 md:w-4" />
-                                    {formatDuration(summary.video.duration)}
-                                  </span>
-                                )}
-                                {summary.createdAt && (
-                                  <span>
-                                    {formatDistanceToNow(new Date(summary.createdAt), { addSuffix: true })}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <Tabs defaultValue="brief" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
-                              <TabsTrigger value="brief" className="text-xs md:text-sm">간단 요약</TabsTrigger>
-                              <TabsTrigger value="detailed" className="text-xs md:text-sm">상세 요약</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="brief" className="mt-4">
-                              <div className="prose prose-sm max-w-none text-sm md:text-base">
-                                <Streamdown>{summary.summary}</Streamdown>
-                              </div>
-                            </TabsContent>
-                            <TabsContent value="detailed" className="mt-4">
-                              <div className="prose prose-sm max-w-none text-sm md:text-base">
-                                <Streamdown>{summary.detailedSummary || summary.summary}</Streamdown>
-                              </div>
-                            </TabsContent>
-                          </Tabs>
-                        </CardContent>
-                      </Card>
-                      ))}
+                      {item.summaries.map((summary) => {
+                        const normalizedData = {
+                          id: summary.id,
+                          videoId: summary.videoId,
+                          summary: summary.summary,
+                          detailedSummary: summary.detailedSummary,
+                          createdAt: summary.createdAt,
+                          videoTitle: summary.video?.title ?? null,
+                          videoThumbnailUrl: summary.video?.thumbnailUrl ?? null,
+                          videoPublishedAt: summary.video?.publishedAt ?? null,
+                          videoDuration: summary.video?.duration ?? null,
+                          videoChannelId: summary.video?.channelId ?? null,
+                        };
+                        return (
+                          <VideoSummaryCard
+                            key={summary.videoId}
+                            data={normalizedData}
+                            bookmarked={bookmarkedSet.has(summary.videoId)}
+                            onChat={() => setChatVideo({ videoId: summary.videoId, title: summary.video?.title || "" })}
+                            onBookmark={() => bookmarkMutation.mutate({ videoId: summary.videoId })}
+                            onPlaylistAdd={() => setPlaylistVideo({ videoId: summary.videoId, title: summary.video?.title || "" })}
+                            onDelete={() => deleteMutation.mutate({ summaryId: summary.id })}
+                            isBookmarkPending={bookmarkMutation.isPending}
+                            isDeletePending={deleteMutation.isPending}
+                            cardClassName="border-2"
+                          />
+                        );
+                      })}
                     </CardContent>
                   )}
                 </CollapsibleContent>

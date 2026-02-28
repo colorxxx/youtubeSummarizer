@@ -78,26 +78,3 @@ export async function generateVideoSummary(
   }
 }
 
-/**
- * Generate summaries for multiple videos
- */
-export async function generateBatchSummaries(
-  videos: Array<{ videoId: string; title: string; description: string | null; duration?: string }>
-): Promise<Map<string, { brief: string; detailed: string }>> {
-  const summaries = new Map<string, { brief: string; detailed: string }>();
-
-  for (const video of videos) {
-    try {
-      const summary = await generateVideoSummary(video.videoId, video.title, video.description || "", video.duration);
-      summaries.set(video.videoId, summary);
-    } catch (error) {
-      log.error(`Failed to summarize video ${video.videoId}:`, error);
-      summaries.set(video.videoId, {
-        brief: "Summary generation failed.",
-        detailed: "Summary generation failed.",
-      });
-    }
-  }
-
-  return summaries;
-}
