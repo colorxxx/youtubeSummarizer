@@ -1,6 +1,6 @@
 import { eq, desc, and, inArray, like, count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, InsertSubscription, InsertVideo, InsertSummary, InsertUserSettings, users, subscriptions, videos, summaries, userSettings, chatMessages } from "../drizzle/schema";
+import { InsertUser, InsertSubscription, InsertVideo, InsertSummary, InsertUserSettings, users, subscriptions, videos, summaries, userSettings, chatMessages, bookmarks, playlists, playlistVideos } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { createLogger } from './_core/logger';
 
@@ -262,6 +262,55 @@ export async function getUserSummariesPaginated(
   };
 }
 
+export async function getDirectSummariesPaginated(
+  userId: number,
+  page: number = 1,
+  limit: number = 10,
+  search?: string,
+) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+
+  const offset = (page - 1) * limit;
+
+  const baseConditions = search
+    ? and(eq(summaries.userId, userId), eq(summaries.source, "direct"), like(videos.title, `%${search}%`))
+    : and(eq(summaries.userId, userId), eq(summaries.source, "direct"));
+
+  const [countResult, items] = await Promise.all([
+    db
+      .select({ total: count() })
+      .from(summaries)
+      .leftJoin(videos, eq(summaries.videoId, videos.videoId))
+      .where(baseConditions),
+    db
+      .select({
+        id: summaries.id,
+        videoId: summaries.videoId,
+        userId: summaries.userId,
+        summary: summaries.summary,
+        detailedSummary: summaries.detailedSummary,
+        createdAt: summaries.createdAt,
+        videoTitle: videos.title,
+        videoThumbnailUrl: videos.thumbnailUrl,
+        videoPublishedAt: videos.publishedAt,
+        videoDuration: videos.duration,
+        videoChannelId: videos.channelId,
+      })
+      .from(summaries)
+      .leftJoin(videos, eq(summaries.videoId, videos.videoId))
+      .where(baseConditions)
+      .orderBy(desc(summaries.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  return {
+    items,
+    total: countResult[0]?.total ?? 0,
+  };
+}
+
 export async function getSummariesGroupedByChannel(userId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -383,6 +432,89 @@ export async function getVideoByVideoId(videoId: string) {
   }
 }
 
+export async function toggleBookmark(userId: number, videoId: string): Promise<{ bookmarked: boolean }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await db
+    .select()
+    .from(bookmarks)
+    .where(and(eq(bookmarks.userId, userId), eq(bookmarks.videoId, videoId)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db.delete(bookmarks).where(
+      and(eq(bookmarks.userId, userId), eq(bookmarks.videoId, videoId))
+    );
+    return { bookmarked: false };
+  } else {
+    await db.insert(bookmarks).values({ userId, videoId });
+    return { bookmarked: true };
+  }
+}
+
+export async function getUserBookmarks(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(bookmarks)
+    .where(eq(bookmarks.userId, userId))
+    .orderBy(desc(bookmarks.createdAt));
+}
+
+export async function getUserBookmarkedSummaries(
+  userId: number,
+  page: number = 1,
+  limit: number = 10,
+  search?: string,
+) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+
+  const offset = (page - 1) * limit;
+
+  const baseConditions = search
+    ? and(eq(bookmarks.userId, userId), like(videos.title, `%${search}%`))
+    : eq(bookmarks.userId, userId);
+
+  const [countResult, items] = await Promise.all([
+    db
+      .select({ total: count() })
+      .from(summaries)
+      .innerJoin(bookmarks, and(eq(summaries.videoId, bookmarks.videoId), eq(bookmarks.userId, userId)))
+      .leftJoin(videos, eq(summaries.videoId, videos.videoId))
+      .where(baseConditions),
+    db
+      .select({
+        id: summaries.id,
+        videoId: summaries.videoId,
+        userId: summaries.userId,
+        summary: summaries.summary,
+        detailedSummary: summaries.detailedSummary,
+        createdAt: summaries.createdAt,
+        videoTitle: videos.title,
+        videoThumbnailUrl: videos.thumbnailUrl,
+        videoPublishedAt: videos.publishedAt,
+        videoDuration: videos.duration,
+        videoChannelId: videos.channelId,
+      })
+      .from(summaries)
+      .innerJoin(bookmarks, and(eq(summaries.videoId, bookmarks.videoId), eq(bookmarks.userId, userId)))
+      .leftJoin(videos, eq(summaries.videoId, videos.videoId))
+      .where(baseConditions)
+      .orderBy(desc(summaries.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  return {
+    items,
+    total: countResult[0]?.total ?? 0,
+  };
+}
+
 export async function getOrFetchTranscript(videoId: string): Promise<{ text: string; available: boolean }> {
   const { getVideoTranscript } = await import("./youtube");
 
@@ -416,4 +548,148 @@ export async function getOrFetchTranscript(videoId: string): Promise<{ text: str
   }
 
   return fetched;
+}
+
+export async function createPlaylist(userId: number, name: string, description?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(playlists).values({ userId, name, description: description ?? null });
+  const insertId = (result[0] as any).insertId as number;
+  const rows = await db.select().from(playlists).where(eq(playlists.id, insertId)).limit(1);
+  return rows[0];
+}
+
+export async function getUserPlaylists(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db
+    .select()
+    .from(playlists)
+    .where(eq(playlists.userId, userId))
+    .orderBy(desc(playlists.updatedAt));
+
+  const withCounts = await Promise.all(
+    rows.map(async (playlist) => {
+      const countResult = await db!
+        .select({ total: count() })
+        .from(playlistVideos)
+        .where(eq(playlistVideos.playlistId, playlist.id));
+      return { ...playlist, videoCount: countResult[0]?.total ?? 0 };
+    })
+  );
+
+  return withCounts;
+}
+
+export async function updatePlaylist(userId: number, playlistId: number, name: string, description?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(playlists)
+    .set({ name, description: description ?? null })
+    .where(and(eq(playlists.id, playlistId), eq(playlists.userId, userId)));
+}
+
+export async function deletePlaylist(userId: number, playlistId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(playlistVideos).where(eq(playlistVideos.playlistId, playlistId));
+  await db.delete(playlists).where(and(eq(playlists.id, playlistId), eq(playlists.userId, userId)));
+}
+
+export async function addVideoToPlaylist(playlistId: number, videoId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  try {
+    await db.insert(playlistVideos).values({ playlistId, videoId });
+  } catch (error: any) {
+    const isDup = error.code === 'ER_DUP_ENTRY' || error?.cause?.code === 'ER_DUP_ENTRY';
+    if (isDup) {
+      log.info(`Video ${videoId} already in playlist ${playlistId}, skipping`);
+    } else {
+      throw error;
+    }
+  }
+}
+
+export async function removeVideoFromPlaylist(playlistId: number, videoId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(playlistVideos).where(
+    and(eq(playlistVideos.playlistId, playlistId), eq(playlistVideos.videoId, videoId))
+  );
+}
+
+export async function getPlaylistVideos(userId: number, playlistId: number, page: number, limit: number) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+
+  // Verify ownership
+  const playlist = await db.select().from(playlists).where(
+    and(eq(playlists.id, playlistId), eq(playlists.userId, userId))
+  ).limit(1);
+
+  if (playlist.length === 0) return { items: [], total: 0 };
+
+  const offset = (page - 1) * limit;
+
+  const baseCondition = and(
+    eq(playlistVideos.playlistId, playlistId),
+    eq(summaries.userId, userId)
+  );
+
+  const [countResult, items] = await Promise.all([
+    db
+      .select({ total: count() })
+      .from(playlistVideos)
+      .innerJoin(summaries, and(eq(playlistVideos.videoId, summaries.videoId), eq(summaries.userId, userId)))
+      .leftJoin(videos, eq(summaries.videoId, videos.videoId))
+      .where(baseCondition),
+    db
+      .select({
+        id: summaries.id,
+        videoId: summaries.videoId,
+        userId: summaries.userId,
+        summary: summaries.summary,
+        detailedSummary: summaries.detailedSummary,
+        createdAt: summaries.createdAt,
+        videoTitle: videos.title,
+        videoThumbnailUrl: videos.thumbnailUrl,
+        videoPublishedAt: videos.publishedAt,
+        videoDuration: videos.duration,
+        videoChannelId: videos.channelId,
+        addedAt: playlistVideos.addedAt,
+      })
+      .from(playlistVideos)
+      .innerJoin(summaries, and(eq(playlistVideos.videoId, summaries.videoId), eq(summaries.userId, userId)))
+      .leftJoin(videos, eq(summaries.videoId, videos.videoId))
+      .where(baseCondition)
+      .orderBy(desc(playlistVideos.addedAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  return {
+    items,
+    total: countResult[0]?.total ?? 0,
+  };
+}
+
+export async function getPlaylistsForVideo(userId: number, videoId: string): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db
+    .select({ playlistId: playlistVideos.playlistId })
+    .from(playlists)
+    .innerJoin(playlistVideos, eq(playlists.id, playlistVideos.playlistId))
+    .where(and(eq(playlists.userId, userId), eq(playlistVideos.videoId, videoId)));
+
+  return rows.map((r) => r.playlistId);
 }

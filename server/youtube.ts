@@ -193,6 +193,82 @@ export async function getChannelVideos(
 }
 
 /**
+ * Extract video ID from a YouTube URL
+ * Supports watch, youtu.be, shorts, embed, and mobile formats
+ */
+export function extractVideoId(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.replace(/^m\./, ""); // strip m. prefix
+
+    if (hostname === "youtu.be") {
+      // https://youtu.be/VIDEO_ID
+      const id = parsed.pathname.slice(1).split("/")[0];
+      return id || null;
+    }
+
+    if (hostname === "www.youtube.com" || hostname === "youtube.com") {
+      const pathname = parsed.pathname;
+
+      if (pathname === "/watch" || pathname.startsWith("/watch?")) {
+        // https://www.youtube.com/watch?v=VIDEO_ID
+        const id = parsed.searchParams.get("v");
+        return id || null;
+      }
+
+      if (pathname.startsWith("/shorts/")) {
+        // https://www.youtube.com/shorts/VIDEO_ID
+        const id = pathname.slice("/shorts/".length).split("/")[0];
+        return id || null;
+      }
+
+      if (pathname.startsWith("/embed/")) {
+        // https://www.youtube.com/embed/VIDEO_ID
+        const id = pathname.slice("/embed/".length).split("/")[0];
+        return id || null;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get video metadata for a single video ID using YouTube Data API v3
+ */
+export async function getVideoDetails(videoId: string): Promise<YouTubeVideo | null> {
+  try {
+    const response = await axios.get(`${YOUTUBE_API_BASE}/videos`, {
+      params: {
+        part: "snippet,contentDetails",
+        id: videoId,
+        key: getApiKey(),
+      },
+    });
+
+    if (!response.data.items || response.data.items.length === 0) {
+      return null;
+    }
+
+    const item = response.data.items[0];
+    return {
+      videoId: item.id,
+      channelId: item.snippet.channelId,
+      title: item.snippet.title,
+      description: item.snippet.description,
+      publishedAt: new Date(item.snippet.publishedAt),
+      thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || "",
+      duration: item.contentDetails.duration,
+    };
+  } catch (error) {
+    log.error("Error fetching video details:", error);
+    return null;
+  }
+}
+
+/**
  * Get video transcript/captions using youtube-transcript library
  * Falls back to null if transcript is not available
  */

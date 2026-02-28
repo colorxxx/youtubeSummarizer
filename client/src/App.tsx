@@ -9,6 +9,9 @@ import DashboardLayout from "./components/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Subscriptions from "./pages/Subscriptions";
 import Summaries from "./pages/Summaries";
+import Bookmarks from "./pages/Bookmarks";
+import DirectSummary from "./pages/DirectSummary";
+import Playlists from "./pages/Playlists";
 import Settings from "./pages/Settings";
 import { BackgroundTasksBar } from "./components/BackgroundTasksBar";
 
@@ -29,6 +32,21 @@ function Router() {
       <Route path="/summaries">
         <DashboardLayout>
           <Summaries />
+        </DashboardLayout>
+      </Route>
+      <Route path="/bookmarks">
+        <DashboardLayout>
+          <Bookmarks />
+        </DashboardLayout>
+      </Route>
+      <Route path="/direct-summary">
+        <DashboardLayout>
+          <DirectSummary />
+        </DashboardLayout>
+      </Route>
+      <Route path="/playlists">
+        <DashboardLayout>
+          <Playlists />
         </DashboardLayout>
       </Route>
       <Route path="/settings">

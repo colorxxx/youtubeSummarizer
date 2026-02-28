@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -69,6 +69,7 @@ export const summaries = mysqlTable("summaries", {
   userId: int("userId").notNull(),
   summary: text("summary").notNull(), // Brief summary (3-5 sentences)
   detailedSummary: text("detailedSummary"), // Detailed summary (length varies by video duration)
+  source: mysqlEnum("source", ["subscription", "direct"]).default("subscription").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -107,3 +108,48 @@ export const chatMessages = mysqlTable("chatMessages", {
 
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = typeof chatMessages.$inferInsert;
+
+/**
+ * User bookmarks for videos
+ */
+export const bookmarks = mysqlTable("bookmarks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  videoId: varchar("videoId", { length: 255 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("bookmarks_user_video_idx").on(table.userId, table.videoId),
+]);
+
+export type Bookmark = typeof bookmarks.$inferSelect;
+export type InsertBookmark = typeof bookmarks.$inferInsert;
+
+/**
+ * Custom playlists created by users
+ */
+export const playlists = mysqlTable("playlists", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Playlist = typeof playlists.$inferSelect;
+export type InsertPlaylist = typeof playlists.$inferInsert;
+
+/**
+ * Many-to-many relationship between playlists and videos
+ */
+export const playlistVideos = mysqlTable("playlistVideos", {
+  id: int("id").autoincrement().primaryKey(),
+  playlistId: int("playlistId").notNull(),
+  videoId: varchar("videoId", { length: 255 }).notNull(),
+  addedAt: timestamp("addedAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("pv_playlist_video_idx").on(table.playlistId, table.videoId),
+]);
+
+export type PlaylistVideo = typeof playlistVideos.$inferSelect;
+export type InsertPlaylistVideo = typeof playlistVideos.$inferInsert;

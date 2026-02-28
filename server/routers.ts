@@ -377,6 +377,89 @@ export const appRouter = router({
       }),
   }),
 
+  directSummary: router({
+    summarize: protectedProcedure
+      .input(z.object({ url: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { extractVideoId, getVideoDetails } = await import("./youtube");
+        const { saveVideo, saveSummary, getUserSummaryForVideo } = await import("./db");
+        const { generateVideoSummary } = await import("./summarizer");
+
+        const videoId = extractVideoId(input.url);
+        if (!videoId) {
+          throw new Error("유효하지 않은 YouTube URL입니다");
+        }
+
+        const videoDetails = await getVideoDetails(videoId);
+        if (!videoDetails) {
+          throw new Error("영상 정보를 가져올 수 없습니다");
+        }
+
+        const existingSummary = await getUserSummaryForVideo(ctx.user.id, videoId);
+        if (existingSummary) {
+          return { success: true, message: "이미 요약된 영상입니다", videoId };
+        }
+
+        await saveVideo({
+          videoId: videoDetails.videoId,
+          channelId: videoDetails.channelId,
+          title: videoDetails.title,
+          description: videoDetails.description,
+          publishedAt: videoDetails.publishedAt,
+          thumbnailUrl: videoDetails.thumbnailUrl,
+          duration: videoDetails.duration,
+        });
+
+        // Background processing
+        (async () => {
+          let taskId: string | null = null;
+          try {
+            taskId = createTask(ctx.user.id, "direct", "직접 요약", 1);
+
+            const summaryResult = await generateVideoSummary(
+              videoDetails.videoId,
+              videoDetails.title,
+              videoDetails.description,
+              videoDetails.duration
+            );
+
+            await saveSummary({
+              videoId: videoDetails.videoId,
+              userId: ctx.user.id,
+              summary: summaryResult.brief,
+              detailedSummary: summaryResult.detailed,
+              source: "direct" as const,
+            });
+
+            completeTask(taskId);
+            log.info(`Direct summary complete for video ${videoId}`);
+          } catch (error) {
+            log.error(`Direct summary failed for video ${videoId}:`, error);
+            if (taskId) {
+              failTask(taskId, error instanceof Error ? error.message : "Unknown error");
+            }
+          }
+        })();
+
+        return { success: true, message: "요약을 생성 중입니다", videoId };
+      }),
+    history: protectedProcedure
+      .input(
+        z.object({
+          page: z.number().min(1).default(1),
+          limit: z.number().min(1).max(50).default(10),
+          search: z.string().optional(),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const { getDirectSummariesPaginated } = await import("./db");
+        const page = input?.page ?? 1;
+        const limit = input?.limit ?? 10;
+        const search = input?.search;
+        return getDirectSummariesPaginated(ctx.user.id, page, limit, search);
+      }),
+  }),
+
   backgroundTasks: router({
     list: protectedProcedure.query(({ ctx }) => {
       return getRecentTasks(ctx.user.id, 10);
@@ -407,6 +490,100 @@ export const appRouter = router({
           videoCount: input.videoCount,
         });
         return { success: true };
+      }),
+  }),
+
+  bookmarks: router({
+    toggle: protectedProcedure
+      .input(z.object({ videoId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { toggleBookmark } = await import("./db");
+        return toggleBookmark(ctx.user.id, input.videoId);
+      }),
+    check: protectedProcedure
+      .input(z.object({ videoIds: z.array(z.string()) }))
+      .query(async ({ ctx, input }) => {
+        const { getUserBookmarks } = await import("./db");
+        const userBookmarks = await getUserBookmarks(ctx.user.id);
+        const bookmarkedSet = new Set(userBookmarks.map((b) => b.videoId));
+        const bookmarkedIds = input.videoIds.filter((id) => bookmarkedSet.has(id));
+        return { bookmarkedIds };
+      }),
+    list: protectedProcedure
+      .input(
+        z.object({
+          page: z.number().min(1).default(1),
+          limit: z.number().min(1).max(50).default(10),
+          search: z.string().optional(),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const { getUserBookmarkedSummaries } = await import("./db");
+        const page = input?.page ?? 1;
+        const limit = input?.limit ?? 10;
+        const search = input?.search;
+        return getUserBookmarkedSummaries(ctx.user.id, page, limit, search);
+      }),
+  }),
+
+  playlists: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const { getUserPlaylists } = await import("./db");
+      return getUserPlaylists(ctx.user.id);
+    }),
+    create: protectedProcedure
+      .input(z.object({ name: z.string().min(1).max(255), description: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { createPlaylist } = await import("./db");
+        return createPlaylist(ctx.user.id, input.name, input.description);
+      }),
+    update: protectedProcedure
+      .input(z.object({ playlistId: z.number(), name: z.string().min(1).max(255), description: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { updatePlaylist } = await import("./db");
+        await updatePlaylist(ctx.user.id, input.playlistId, input.name, input.description);
+        return { success: true };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ playlistId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { deletePlaylist } = await import("./db");
+        await deletePlaylist(ctx.user.id, input.playlistId);
+        return { success: true };
+      }),
+    videos: protectedProcedure
+      .input(z.object({ playlistId: z.number(), page: z.number().min(1).default(1), limit: z.number().min(1).max(50).default(10) }))
+      .query(async ({ ctx, input }) => {
+        const { getPlaylistVideos } = await import("./db");
+        return getPlaylistVideos(ctx.user.id, input.playlistId, input.page, input.limit);
+      }),
+    addVideo: protectedProcedure
+      .input(z.object({ playlistId: z.number(), videoId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { addVideoToPlaylist, getUserPlaylists } = await import("./db");
+        const userPlaylists = await getUserPlaylists(ctx.user.id);
+        if (!userPlaylists.some((p) => p.id === input.playlistId)) {
+          throw new Error("재생목록에 대한 권한이 없습니다");
+        }
+        await addVideoToPlaylist(input.playlistId, input.videoId);
+        return { success: true };
+      }),
+    removeVideo: protectedProcedure
+      .input(z.object({ playlistId: z.number(), videoId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { removeVideoFromPlaylist, getUserPlaylists } = await import("./db");
+        const userPlaylists = await getUserPlaylists(ctx.user.id);
+        if (!userPlaylists.some((p) => p.id === input.playlistId)) {
+          throw new Error("재생목록에 대한 권한이 없습니다");
+        }
+        await removeVideoFromPlaylist(input.playlistId, input.videoId);
+        return { success: true };
+      }),
+    videoPlaylists: protectedProcedure
+      .input(z.object({ videoId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const { getPlaylistsForVideo } = await import("./db");
+        return getPlaylistsForVideo(ctx.user.id, input.videoId);
       }),
   }),
 });

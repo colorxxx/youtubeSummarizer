@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Youtube, FileText, Settings } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Youtube, FileText, Settings, Bookmark, PlaySquare, ListVideo } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -30,7 +30,10 @@ import { Button } from "./ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "대시보드", path: "/dashboard" },
   { icon: Youtube, label: "구독 채널", path: "/subscriptions" },
+  { icon: PlaySquare, label: "직접 요약", path: "/direct-summary" },
   { icon: FileText, label: "요약 목록", path: "/summaries" },
+  { icon: Bookmark, label: "북마크", path: "/bookmarks" },
+  { icon: ListVideo, label: "재생목록", path: "/playlists" },
   { icon: Settings, label: "설정", path: "/settings" },
 ];
 

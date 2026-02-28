@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Youtube, Clock, Loader2, RefreshCw, Trash2, MessageCircle } from "lucide-react";
+import { ChevronDown, Youtube, Clock, Loader2, RefreshCw, Trash2, MessageCircle, Bookmark, ListPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
 import { useState } from "react";
@@ -11,6 +11,7 @@ import { formatDistanceToNow } from "date-fns";
 import { formatDuration } from "@/lib/utils";
 import { useBackgroundTasks } from "@/hooks/useBackgroundTasks";
 import { VideoChatSheet } from "@/components/VideoChatSheet";
+import { PlaylistAddDialog } from "@/components/PlaylistAddDialog";
 
 export default function Dashboard() {
   const { data: channelData, isLoading, refetch } = trpc.dashboard.channelSummaries.useQuery();
@@ -35,6 +36,7 @@ export default function Dashboard() {
     },
   });
   const [chatVideo, setChatVideo] = useState<{ videoId: string; title: string } | null>(null);
+  const [playlistVideo, setPlaylistVideo] = useState<{ videoId: string; title: string } | null>(null);
   const [refreshingChannelId, setRefreshingChannelId] = useState<string | null>(null);
   const refreshChannelMutation = trpc.dashboard.refreshChannel.useMutation({
     onSuccess: (data) => {
@@ -69,6 +71,20 @@ export default function Dashboard() {
   }
 
   const allChannels = channelData || [];
+
+  // Collect all videoIds for bookmark check
+  const allVideoIds = allChannels.flatMap((item) => item.summaries.map((s) => s.videoId));
+  const bookmarkCheckQuery = trpc.bookmarks.check.useQuery(
+    { videoIds: allVideoIds },
+    { enabled: allVideoIds.length > 0 },
+  );
+  const bookmarkedSet = new Set(bookmarkCheckQuery.data?.bookmarkedIds ?? []);
+  const bookmarkMutation = trpc.bookmarks.toggle.useMutation({
+    onSuccess: (result) => {
+      toast.success(result.bookmarked ? "북마크에 추가되었습니다" : "북마크가 해제되었습니다");
+      bookmarkCheckQuery.refetch();
+    },
+  });
 
   return (
     <div className="container py-6 md:py-8">
@@ -217,6 +233,25 @@ export default function Dashboard() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    className={`h-8 w-8 ${bookmarkedSet.has(summary.videoId) ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-yellow-500"}`}
+                                    onClick={() => bookmarkMutation.mutate({ videoId: summary.videoId })}
+                                    disabled={bookmarkMutation.isPending}
+                                    title="북마크"
+                                  >
+                                    <Bookmark className={`h-4 w-4 ${bookmarkedSet.has(summary.videoId) ? "fill-current" : ""}`} />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                    onClick={() => setPlaylistVideo({ videoId: summary.videoId, title: summary.video?.title || "" })}
+                                    title="재생목록에 추가"
+                                  >
+                                    <ListPlus className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
                                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                     disabled={deleteMutation.isPending}
                                     onClick={() => {
@@ -280,6 +315,15 @@ export default function Dashboard() {
           videoTitle={chatVideo.title}
           open={!!chatVideo}
           onOpenChange={(open) => { if (!open) setChatVideo(null); }}
+        />
+      )}
+
+      {playlistVideo && (
+        <PlaylistAddDialog
+          videoId={playlistVideo.videoId}
+          videoTitle={playlistVideo.title}
+          open={!!playlistVideo}
+          onOpenChange={(open) => { if (!open) setPlaylistVideo(null); }}
         />
       )}
     </div>

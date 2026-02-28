@@ -43,6 +43,13 @@
       "when": 1771659918980,
       "tag": "0005_hot_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1772284376713,
+      "tag": "0006_fat_night_thrasher",
+      "breakpoints": true
     }
   ]
 }

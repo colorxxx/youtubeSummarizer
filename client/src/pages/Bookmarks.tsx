@@ -1,7 +1,6 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { Bookmark, Clock, FileText, ListPlus, Loader2, MessageCircle, Search, Trash2, Youtube } from "lucide-react";
+import { Bookmark, Clock, FileText, Loader2, MessageCircle, Search, Trash2, Youtube, ListPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -21,8 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { VideoChatSheet } from "@/components/VideoChatSheet";
 import { PlaylistAddDialog } from "@/components/PlaylistAddDialog";
 
-export default function Summaries() {
-  const { user } = useAuth();
+export default function Bookmarks() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -31,10 +29,20 @@ export default function Summaries() {
   const [playlistVideo, setPlaylistVideo] = useState<{ videoId: string; title: string } | null>(null);
   const limit = 10;
 
-  const { data, isLoading, refetch } = trpc.summaries.list.useQuery({
+  const { data, isLoading, refetch } = trpc.bookmarks.list.useQuery({
     page,
     limit,
     search: search || undefined,
+  });
+
+  const bookmarkMutation = trpc.bookmarks.toggle.useMutation({
+    onSuccess: (result) => {
+      toast.success(result.bookmarked ? "북마크에 추가되었습니다" : "북마크가 해제되었습니다");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error("북마크 처리 실패: " + error.message);
+    },
   });
 
   const deleteMutation = trpc.summaries.delete.useMutation({
@@ -58,35 +66,9 @@ export default function Summaries() {
     };
   }, [searchInput]);
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>로그인 필요</CardTitle>
-            <CardDescription>요약을 확인하려면 로그인해주세요</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
-  const bookmarkMutation = trpc.bookmarks.toggle.useMutation({
-    onSuccess: (result) => {
-      toast.success(result.bookmarked ? "북마크에 추가되었습니다" : "북마크가 해제되었습니다");
-      bookmarkCheckQuery.refetch();
-    },
-  });
-
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / limit);
-
-  const bookmarkCheckQuery = trpc.bookmarks.check.useQuery(
-    { videoIds: items.map((s) => s.videoId) },
-    { enabled: items.length > 0 },
-  );
-  const bookmarkedSet = new Set(bookmarkCheckQuery.data?.bookmarkedIds ?? []);
 
   const getPageNumbers = () => {
     const pages: (number | "ellipsis")[] = [];
@@ -107,13 +89,12 @@ export default function Summaries() {
   return (
     <div className="container py-8 max-w-5xl">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">요약 목록</h1>
+        <h1 className="text-4xl font-bold mb-2">북마크</h1>
         <p className="text-muted-foreground">
-          구독 채널의 AI 생성 영상 요약 {total > 0 && <span className="font-medium text-foreground">({total}개)</span>}
+          북마크한 영상 요약 모아보기 {total > 0 && <span className="font-medium text-foreground">({total}개)</span>}
         </p>
       </div>
 
-      {/* Search */}
       <div className="mb-6">
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -177,12 +158,12 @@ export default function Summaries() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className={`h-8 w-8 ${bookmarkedSet.has(summary.videoId) ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-yellow-500"}`}
+                            className="h-8 w-8 text-yellow-500 hover:text-yellow-600"
                             onClick={() => bookmarkMutation.mutate({ videoId: summary.videoId })}
                             disabled={bookmarkMutation.isPending}
-                            title="북마크"
+                            title="북마크 해제"
                           >
-                            <Bookmark className={`h-4 w-4 ${bookmarkedSet.has(summary.videoId) ? "fill-current" : ""}`} />
+                            <Bookmark className="h-4 w-4 fill-current" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -257,7 +238,6 @@ export default function Summaries() {
             ))}
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="mt-8">
               <Pagination>
@@ -299,15 +279,15 @@ export default function Summaries() {
       ) : (
         <Card className="text-center py-12">
           <CardContent className="space-y-4">
-            <FileText className="h-16 w-16 mx-auto text-muted-foreground" />
+            <Bookmark className="h-16 w-16 mx-auto text-muted-foreground" />
             <div>
               <h3 className="text-xl font-semibold mb-2">
-                {search ? "검색 결과가 없습니다" : "아직 요약이 없습니다"}
+                {search ? "검색 결과가 없습니다" : "아직 북마크한 영상이 없습니다"}
               </h3>
               <p className="text-muted-foreground">
                 {search
                   ? "다른 검색어를 입력해보세요"
-                  : "채널을 구독하면 새 영상의 요약이 여기에 표시됩니다"}
+                  : "영상 카드에서 북마크 아이콘을 클릭하여 영상을 모아보세요"}
               </p>
             </div>
           </CardContent>
