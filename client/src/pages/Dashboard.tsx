@@ -62,14 +62,6 @@ export default function Dashboard() {
     });
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   const allChannels = channelData || [];
 
   // Collect all videoIds for bookmark check
@@ -85,6 +77,14 @@ export default function Dashboard() {
       bookmarkCheckQuery.refetch();
     },
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="container py-6 md:py-8">

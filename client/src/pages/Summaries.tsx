@@ -47,6 +47,23 @@ export default function Summaries() {
     },
   });
 
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / limit);
+
+  const bookmarkCheckQuery = trpc.bookmarks.check.useQuery(
+    { videoIds: items.map((s) => s.videoId) },
+    { enabled: items.length > 0 },
+  );
+  const bookmarkedSet = new Set(bookmarkCheckQuery.data?.bookmarkedIds ?? []);
+
+  const bookmarkMutation = trpc.bookmarks.toggle.useMutation({
+    onSuccess: (result) => {
+      toast.success(result.bookmarked ? "북마크에 추가되었습니다" : "북마크가 해제되었습니다");
+      bookmarkCheckQuery.refetch();
+    },
+  });
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -70,23 +87,6 @@ export default function Summaries() {
       </div>
     );
   }
-
-  const bookmarkMutation = trpc.bookmarks.toggle.useMutation({
-    onSuccess: (result) => {
-      toast.success(result.bookmarked ? "북마크에 추가되었습니다" : "북마크가 해제되었습니다");
-      bookmarkCheckQuery.refetch();
-    },
-  });
-
-  const items = data?.items ?? [];
-  const total = data?.total ?? 0;
-  const totalPages = Math.ceil(total / limit);
-
-  const bookmarkCheckQuery = trpc.bookmarks.check.useQuery(
-    { videoIds: items.map((s) => s.videoId) },
-    { enabled: items.length > 0 },
-  );
-  const bookmarkedSet = new Set(bookmarkCheckQuery.data?.bookmarkedIds ?? []);
 
   const getPageNumbers = () => {
     const pages: (number | "ellipsis")[] = [];
