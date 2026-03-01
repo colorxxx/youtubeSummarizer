@@ -2,6 +2,9 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import os from "os";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
@@ -10,6 +13,9 @@ import { serveStatic, setupVite } from "./vite";
 import { initializeCronJobs } from "../cronJobs";
 import { handleChatStream } from "../chatStream";
 import { createLogger } from "./logger";
+import { getVideoTranscript } from "../youtube";
+
+const execFileAsync = promisify(execFile);
 
 const log = createLogger("Server");
 
@@ -43,6 +49,52 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Chat streaming SSE endpoint
   app.post("/api/chat/stream", handleChatStream);
+
+  // Temporary diagnostic endpoint for yt-dlp debugging (remove after fix)
+  app.get("/api/debug/yt-dlp", async (_req, res) => {
+    const results: Record<string, unknown> = {};
+
+    // 1. which yt-dlp
+    try {
+      const { stdout } = await execFileAsync("which", ["yt-dlp"]);
+      results.whichYtDlp = { success: true, path: stdout.trim() };
+    } catch (err) {
+      results.whichYtDlp = { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 2. yt-dlp --version
+    try {
+      const { stdout } = await execFileAsync("yt-dlp", ["--version"]);
+      results.ytDlpVersion = { success: true, version: stdout.trim() };
+    } catch (err) {
+      results.ytDlpVersion = { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 3. Actual subtitle fetch test
+    const testVideoId = "Xlc_ALDWc0Q";
+    try {
+      const transcript = await getVideoTranscript(testVideoId);
+      results.transcriptFetch = {
+        success: transcript.available,
+        textLength: transcript.text.length,
+        preview: transcript.text.substring(0, 200),
+      };
+    } catch (err) {
+      results.transcriptFetch = { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 4. Environment info
+    results.environment = {
+      PATH: process.env.PATH,
+      nodeVersion: process.version,
+      platform: os.platform(),
+      arch: os.arch(),
+      tmpdir: os.tmpdir(),
+    };
+
+    res.json(results);
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
