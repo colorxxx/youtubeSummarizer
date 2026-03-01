@@ -164,9 +164,23 @@ export async function deleteSummary(userId: number, summaryId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  // 1. 삭제 대상 summary의 videoId 조회
+  const target = await db.select({ videoId: summaries.videoId })
+    .from(summaries)
+    .where(and(eq(summaries.id, summaryId), eq(summaries.userId, userId)))
+    .limit(1);
+
+  // 2. summary 삭제
   await db.delete(summaries).where(
     and(eq(summaries.id, summaryId), eq(summaries.userId, userId))
   );
+
+  // 3. 자막 캐시 초기화 → 다음 요약 시 yt-dlp로 새로 fetch
+  if (target[0]) {
+    await db.update(videos)
+      .set({ transcript: null })
+      .where(eq(videos.videoId, target[0].videoId));
+  }
 }
 
 export async function getMonthlyUserSummaryCount(userId: number): Promise<number> {
