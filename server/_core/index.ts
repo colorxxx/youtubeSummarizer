@@ -99,7 +99,15 @@ async function startServer() {
       results.transcriptFetch = { success: false, error: err instanceof Error ? err.message : String(err) };
     }
 
-    // 4. Search for yt-dlp / python3 anywhere
+    // 4. Check if curl/wget available
+    try {
+      const { stdout } = await execFileAsync("which", ["curl"]);
+      results.whichCurl = { success: true, path: stdout.trim() };
+    } catch {
+      results.whichCurl = { success: false };
+    }
+
+    // 5. Search for yt-dlp / python3 anywhere
     try {
       const { stdout } = await execFileAsync("find", ["/", "-name", "yt-dlp", "-type", "f"], { timeout: 10_000 });
       results.findYtDlp = { success: true, files: stdout.trim().split("\n").filter(Boolean) };
@@ -117,7 +125,7 @@ async function startServer() {
     }
 
     // 5. Environment info
-    results.deployVersion = "v3-nixpkgs";
+    results.deployVersion = "v4-standalone-binary";
     results.environment = {
       PATH: process.env.PATH,
       nodeVersion: process.version,
