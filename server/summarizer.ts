@@ -44,7 +44,7 @@ export async function generateVideoSummary(
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that creates concise summaries of YouTube video content in Korean. Focus on key points and main topics. Always respond in Korean language.",
+          content: "You are a helpful assistant that creates concise summaries of YouTube video content in Korean. Focus on key points and main topics. 마크다운 불릿 포인트(-)로 정리해주세요. Always respond in Korean language.",
         },
         {
           role: "user",
@@ -58,7 +58,7 @@ export async function generateVideoSummary(
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that creates detailed, informative summaries of YouTube video content in Korean. Include key points, examples, insights, and actionable takeaways. Always respond in Korean language.",
+          content: "You are a helpful assistant that creates detailed, informative summaries of YouTube video content in Korean. Include key points, examples, insights, and actionable takeaways. 마크다운 형식(## 제목, - 불릿 포인트)으로 구조화해주세요. Always respond in Korean language.",
         },
         {
           role: "user",
