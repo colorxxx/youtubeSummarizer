@@ -188,7 +188,7 @@ export function VideoChatSheet({ videoId, videoTitle, open, onOpenChange }: Vide
           </div>
           <SheetDescription className="line-clamp-1">{videoTitle}</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 min-h-0 p-4 pt-2 flex flex-col">
+        <div className="flex-1 min-h-0 pt-2 flex flex-col">
           <AIChatBox
             messages={messages}
             onSendMessage={handleSendMessage}
