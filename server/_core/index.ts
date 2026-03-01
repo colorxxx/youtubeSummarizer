@@ -99,7 +99,25 @@ async function startServer() {
       results.transcriptFetch = { success: false, error: err instanceof Error ? err.message : String(err) };
     }
 
-    // 4. Environment info
+    // 4. Search for yt-dlp / python3 anywhere
+    try {
+      const { stdout } = await execFileAsync("find", ["/", "-name", "yt-dlp", "-type", "f"], { timeout: 10_000 });
+      results.findYtDlp = { success: true, files: stdout.trim().split("\n").filter(Boolean) };
+    } catch (err) {
+      const output = (err as { stdout?: string }).stdout?.trim();
+      results.findYtDlp = { files: output ? output.split("\n").filter(Boolean) : [], note: "find completed with errors (permission denied expected)" };
+    }
+
+    try {
+      const { stdout } = await execFileAsync("find", ["/", "-name", "python3", "-type", "f"], { timeout: 10_000 });
+      results.findPython3 = { files: stdout.trim().split("\n").filter(Boolean) };
+    } catch (err) {
+      const output = (err as { stdout?: string }).stdout?.trim();
+      results.findPython3 = { files: output ? output.split("\n").filter(Boolean) : [] };
+    }
+
+    // 5. Environment info
+    results.deployVersion = "v3-nixpkgs";
     results.environment = {
       PATH: process.env.PATH,
       nodeVersion: process.version,
