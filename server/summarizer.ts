@@ -2,7 +2,7 @@ import { invokeLLM, getContextLimits } from "./_core/llm";
 import type { LLMProvider } from "./_core/llm";
 import { createLogger } from "./_core/logger";
 import { getOrFetchTranscript } from "./db";
-import { parseDuration, getTargetSummaryLength } from "./videoUtils";
+
 
 const log = createLogger("Summarizer");
 
@@ -32,9 +32,6 @@ export async function generateVideoSummary(
       };
     }
 
-    // Determine summary length based on video duration
-    const durationSeconds = duration ? parseDuration(duration) : 600; // Default to 10 min
-    const targetLength = getTargetSummaryLength(durationSeconds);
     const limits = getContextLimits(provider);
 
     log.info(`Using provider: ${provider} (briefTranscript: ${limits.briefTranscript}, detailedTranscript: ${limits.detailedTranscript})`);
@@ -43,12 +40,8 @@ export async function generateVideoSummary(
     const briefResponse = await invokeLLM({
       messages: [
         {
-          role: "system",
-          content: "You are a helpful assistant that creates concise summaries of YouTube video content in Korean. Focus on key points and main topics. 마크다운 불릿 포인트(-)로 정리해주세요. Always respond in Korean language.",
-        },
-        {
           role: "user",
-          content: `다음 유튜브 영상을 한국어로 간단히 요약해주세요:\n\n제목: ${title}\n\n${transcript.available ? '자막 내용' : '설명'}: ${videoContent.substring(0, limits.briefTranscript)}\n\n주요 내용과 핵심 포인트를 중심으로 ${targetLength.brief}으로 간결하게 요약해주세요.`,
+          content: `아래 영상 자막의 핵심을 한국어로 요약하세요.\n"영상에서는" 같은 메타 표현 없이 정보를 직접 서술합니다.\n\n## 한줄 요약\n(핵심 메시지 1문장)\n\n## 핵심 포인트\n(5~7개 불릿포인트, 각각 구체적 사실 포함)\n\n---\n자막:\n${videoContent.substring(0, limits.briefTranscript)}`,
         },
       ],
     }, provider);
@@ -58,11 +51,11 @@ export async function generateVideoSummary(
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that creates detailed, informative summaries of YouTube video content in Korean. Include key points, examples, insights, and actionable takeaways. 마크다운 형식(## 제목, - 불릿 포인트)으로 구조화해주세요. Always respond in Korean language.",
+          content: "당신은 전문 콘텐츠 분석가입니다.\n아래 영상 자막을 분석하여 한국어로 구조화된 요약을 작성하세요.\n\n[원칙]\n- 정보를 직접 서술. \"영상에서는\", \"화자는\" 같은 메타 표현 금지.\n- 자동 생성 자막의 오류, 반복, 필러는 무시하고 실질적 내용에 집중.\n- 간결하고 명확한 문체, 핵심 정보 누락 없이.\n\n[출력 형식]\n\n## 한줄 요약\n핵심 메시지 1문장.\n\n## 핵심 포인트\n- 가장 중요한 내용 5~8개 불릿포인트.\n- 각 포인트는 구체적 사실·수치·주장 포함한 완결된 문장.\n\n## 상세 내용\n주제별 소제목(###)으로 나누고, 각 주제 핵심을 2~4문장으로 설명. 중요한 예시·근거·인용 포함.\n\n## 키워드\n핵심 용어를 선별, 각각 한 문장으로 설명.",
         },
         {
           role: "user",
-          content: `다음 유튜브 영상을 한국어로 상세히 요약해주세요:\n\n제목: ${title}\n\n${transcript.available ? '자막 내용' : '설명'}: ${videoContent.substring(0, limits.detailedTranscript)}\n\n${targetLength.detailed}하여 상세하게 요약해주세요. 주요 논점, 예시, 인사이트를 모두 포함해주세요.`,
+          content: `자막:\n${videoContent.substring(0, limits.detailedTranscript)}`,
         },
       ],
     }, provider);
