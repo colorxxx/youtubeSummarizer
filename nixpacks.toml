@@ -1,3 +1,2 @@
-[phases.setup]
-# yt-dlp is installed via Procfile (standalone binary download at startup)
+# yt-dlp standalone binary is downloaded via postinstall script (scripts/install-yt-dlp.cjs)
 # aptPkgs and nixPkgs do not persist to Railway runtime container
