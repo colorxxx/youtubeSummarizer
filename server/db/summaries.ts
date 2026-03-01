@@ -1,4 +1,4 @@
-import { eq, desc, and, like, count, gte } from "drizzle-orm";
+import { eq, desc, and, like, count, gte, or, sql } from "drizzle-orm";
 import { InsertSummary, summaries, videos } from "../../drizzle/schema";
 import { getDb } from './connection';
 import { getUserSubscriptions } from './subscriptions';
@@ -42,8 +42,16 @@ export async function getUserSummariesPaginated(
 
   const offset = (page - 1) * limit;
 
+  const searchCondition = search
+    ? or(
+        like(videos.title, `%${search}%`),
+        like(summaries.summary, `%${search}%`),
+        like(summaries.detailedSummary, `%${search}%`),
+      )
+    : undefined;
+
   const baseConditions = search
-    ? and(eq(summaries.userId, userId), like(videos.title, `%${search}%`))
+    ? and(eq(summaries.userId, userId), searchCondition)
     : eq(summaries.userId, userId);
 
   const [countResult, items] = await Promise.all([
@@ -69,7 +77,14 @@ export async function getUserSummariesPaginated(
       .from(summaries)
       .leftJoin(videos, eq(summaries.videoId, videos.videoId))
       .where(baseConditions)
-      .orderBy(desc(summaries.createdAt))
+      .orderBy(
+        ...(search
+          ? [
+              desc(sql`CASE WHEN ${videos.title} LIKE ${'%' + search + '%'} THEN 1 ELSE 0 END`),
+              desc(summaries.createdAt),
+            ]
+          : [desc(summaries.createdAt)])
+      )
       .limit(limit)
       .offset(offset),
   ]);
@@ -91,8 +106,16 @@ export async function getDirectSummariesPaginated(
 
   const offset = (page - 1) * limit;
 
+  const searchCondition = search
+    ? or(
+        like(videos.title, `%${search}%`),
+        like(summaries.summary, `%${search}%`),
+        like(summaries.detailedSummary, `%${search}%`),
+      )
+    : undefined;
+
   const baseConditions = search
-    ? and(eq(summaries.userId, userId), eq(summaries.source, "direct"), like(videos.title, `%${search}%`))
+    ? and(eq(summaries.userId, userId), eq(summaries.source, "direct"), searchCondition)
     : and(eq(summaries.userId, userId), eq(summaries.source, "direct"));
 
   const [countResult, items] = await Promise.all([
@@ -118,7 +141,14 @@ export async function getDirectSummariesPaginated(
       .from(summaries)
       .leftJoin(videos, eq(summaries.videoId, videos.videoId))
       .where(baseConditions)
-      .orderBy(desc(summaries.createdAt))
+      .orderBy(
+        ...(search
+          ? [
+              desc(sql`CASE WHEN ${videos.title} LIKE ${'%' + search + '%'} THEN 1 ELSE 0 END`),
+              desc(summaries.createdAt),
+            ]
+          : [desc(summaries.createdAt)])
+      )
       .limit(limit)
       .offset(offset),
   ]);

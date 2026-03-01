@@ -9,6 +9,7 @@ import { VideoChatSheet } from "@/components/VideoChatSheet";
 import { PlaylistAddDialog } from "@/components/PlaylistAddDialog";
 import { VideoSummaryCard } from "@/components/VideoSummaryCard";
 import { PaginationBar } from "@/components/PaginationBar";
+import { SearchInput } from "@/components/SearchInput";
 
 function isValidYoutubeUrl(url: string): boolean {
   const patterns = [
@@ -24,11 +25,13 @@ function isValidYoutubeUrl(url: string): boolean {
 export default function DirectSummary() {
   const [url, setUrl] = useState("");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
   const limit = 10;
 
   const { data, isLoading, refetch } = trpc.directSummary.history.useQuery({
     page,
     limit,
+    search: search || undefined,
   });
 
   const summarizeMutation = trpc.directSummary.summarize.useMutation({
@@ -137,6 +140,14 @@ export default function DirectSummary() {
         </p>
       </div>
 
+      <div className="mb-6">
+        <SearchInput
+          value={search}
+          onChange={(v) => { setSearch(v); setPage(1); }}
+          placeholder="영상 제목 또는 요약 내용으로 검색..."
+        />
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -166,10 +177,21 @@ export default function DirectSummary() {
           <CardContent className="space-y-4">
             <PlaySquare className="h-16 w-16 mx-auto text-muted-foreground" />
             <div>
-              <h3 className="text-xl font-semibold mb-2">아직 직접 요약한 영상이 없습니다</h3>
-              <p className="text-muted-foreground">
-                위 입력란에 YouTube URL을 붙여넣어 요약을 시작하세요
-              </p>
+              {search ? (
+                <>
+                  <h3 className="text-xl font-semibold mb-2">검색 결과가 없습니다</h3>
+                  <p className="text-muted-foreground">
+                    다른 검색어로 시도해보세요
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-xl font-semibold mb-2">아직 직접 요약한 영상이 없습니다</h3>
+                  <p className="text-muted-foreground">
+                    위 입력란에 YouTube URL을 붙여넣어 요약을 시작하세요
+                  </p>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

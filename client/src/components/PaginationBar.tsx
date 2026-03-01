@@ -20,11 +20,11 @@ function getPageNumbers(page: number, totalPages: number): (number | "ellipsis")
     for (let i = 1; i <= totalPages; i++) pages.push(i);
   } else {
     pages.push(1);
-    if (page > 3) pages.push("ellipsis");
-    const start = Math.max(2, page - 1);
-    const end = Math.min(totalPages - 1, page + 1);
+    if (page > 4) pages.push("ellipsis");
+    const start = Math.max(2, page - 2);
+    const end = Math.min(totalPages - 1, page + 2);
     for (let i = start; i <= end; i++) pages.push(i);
-    if (page < totalPages - 2) pages.push("ellipsis");
+    if (page < totalPages - 3) pages.push("ellipsis");
     pages.push(totalPages);
   }
   return pages;
