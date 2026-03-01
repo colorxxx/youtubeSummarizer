@@ -8,7 +8,8 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const YT_DLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
+// Use yt-dlp_linux — the standalone binary that doesn't require Python
+const YT_DLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux";
 const DEST = path.join(__dirname, "..", "node_modules", ".bin", "yt-dlp");
 
 function download(url, dest, maxRedirects = 5) {
