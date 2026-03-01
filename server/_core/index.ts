@@ -125,7 +125,7 @@ async function startServer() {
     }
 
     // 5. Environment info
-    results.deployVersion = "v4-standalone-binary";
+    results.deployVersion = "v5-postinstall-download";
     results.environment = {
       PATH: process.env.PATH,
       nodeVersion: process.version,
