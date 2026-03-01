@@ -1,7 +1,13 @@
 import axios from "axios";
-import { YoutubeTranscript } from "youtube-transcript";
+import { execFile } from "child_process";
+import { mkdtemp, readdir, readFile, rm } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+import { promisify } from "util";
 import { createLogger } from "./_core/logger";
 import { parseDuration } from "./videoUtils";
+
+const execFileAsync = promisify(execFile);
 
 const log = createLogger("YouTube");
 
@@ -269,24 +275,89 @@ export async function getVideoDetails(videoId: string): Promise<YouTubeVideo | n
 }
 
 /**
- * Get video transcript/captions using youtube-transcript library
- * Falls back to null if transcript is not available
+ * Parse VTT subtitle content into plain text.
+ * Removes headers, timestamps, HTML tags, and deduplicates lines.
+ */
+function parseVtt(vtt: string): string {
+  const lines = vtt.split("\n");
+  const textLines: string[] = [];
+  const seen = new Set<string>();
+
+  for (const line of lines) {
+    // Skip VTT header, metadata, timestamps, and cue indices
+    if (
+      line.startsWith("WEBVTT") ||
+      line.startsWith("Kind:") ||
+      line.startsWith("Language:") ||
+      line.includes("-->") ||
+      line.trim() === "" ||
+      /^\d+$/.test(line.trim())
+    ) {
+      continue;
+    }
+
+    // Remove HTML tags (<c>, </c>, <00:00:01.234>, etc.) and decode entities
+    const cleaned = line
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&nbsp;/g, " ")
+      .trim();
+
+    if (cleaned && !seen.has(cleaned)) {
+      seen.add(cleaned);
+      textLines.push(cleaned);
+    }
+  }
+
+  return textLines.join(" ");
+}
+
+/**
+ * Get video transcript/captions using yt-dlp CLI.
+ * Prefers Korean (ko) subtitles, falls back to English (en).
+ * Uses temp directory for subtitle file output.
  */
 export async function getVideoTranscript(videoId: string): Promise<VideoTranscript> {
-  try {
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+  const tempDir = await mkdtemp(join(tmpdir(), "yt-sub-"));
 
-    if (!transcript || transcript.length === 0) {
+  try {
+    await execFileAsync("yt-dlp", [
+      "--write-sub",
+      "--write-auto-sub",
+      "--sub-lang", "ko,en",
+      "--sub-format", "vtt",
+      "--skip-download",
+      "--no-warnings",
+      "--quiet",
+      "-o", join(tempDir, "%(id)s"),
+      `https://www.youtube.com/watch?v=${videoId}`,
+    ], { timeout: 30_000 });
+
+    // Find downloaded .vtt file — prefer ko over en
+    const files = await readdir(tempDir);
+    const koFile = files.find(f => f.includes(".ko.") && f.endsWith(".vtt"));
+    const enFile = files.find(f => f.includes(".en.") && f.endsWith(".vtt"));
+    const vttFile = koFile ?? enFile ?? files.find(f => f.endsWith(".vtt"));
+
+    if (!vttFile) {
       return { text: "", available: false };
     }
 
-    // Combine all transcript segments into a single text
-    const fullText = transcript.map((item: any) => item.text).join(" ");
+    const vttContent = await readFile(join(tempDir, vttFile), "utf-8");
+    const text = parseVtt(vttContent);
 
-    return { text: fullText, available: true };
+    return text.length > 0
+      ? { text, available: true }
+      : { text: "", available: false };
   } catch (error) {
-    // Transcript not available or error occurred
-    log.info(`Transcript not available for video ${videoId}:`, error instanceof Error ? error.message : "Unknown error");
+    log.info(
+      `Transcript not available for video ${videoId}:`,
+      error instanceof Error ? error.message : "Unknown error",
+    );
     return { text: "", available: false };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
   }
 }

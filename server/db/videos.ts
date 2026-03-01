@@ -76,20 +76,20 @@ export async function getOrFetchTranscript(videoId: string): Promise<{ text: str
   const row = result[0];
 
   if (row && row.transcript !== null) {
-    // 캐시 히트 (빈 문자열 = 자막 없는 영상)
-    return {
-      text: row.transcript,
-      available: row.transcript.length > 0,
-    };
+    // 캐시 히트: 실제 자막이 있으면 반환, 빈 문자열은 이전 실패 → 재시도
+    if (row.transcript.length > 0) {
+      return { text: row.transcript, available: true };
+    }
+    // 빈 문자열 = 이전 youtube-transcript 실패 캐시 → fall through하여 재시도
   }
 
-  // 캐시 미스 → YouTube에서 fetch
+  // 캐시 미스 또는 빈 문자열 → YouTube에서 fetch
   const fetched = await getVideoTranscript(videoId);
-  const textToStore = fetched.available ? fetched.text : "";
+  const textToStore = fetched.available ? fetched.text : null;
 
   try {
     await db.update(videos).set({ transcript: textToStore }).where(eq(videos.videoId, videoId));
-    log.info(`Cached transcript for ${videoId} (${textToStore.length} chars)`);
+    log.info(`Cached transcript for ${videoId} (${textToStore?.length ?? 0} chars)`);
   } catch (error) {
     log.error(`Failed to cache transcript for ${videoId}:`, error);
   }
