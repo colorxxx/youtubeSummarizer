@@ -323,17 +323,27 @@ export async function getVideoTranscript(videoId: string): Promise<VideoTranscri
   const tempDir = await mkdtemp(join(tmpdir(), "yt-sub-"));
 
   try {
-    await execFileAsync("yt-dlp", [
-      "--write-sub",
-      "--write-auto-sub",
-      "--sub-lang", "ko,en",
-      "--sub-format", "vtt",
-      "--skip-download",
-      "--no-warnings",
-      "--quiet",
-      "-o", join(tempDir, "%(id)s"),
-      `https://www.youtube.com/watch?v=${videoId}`,
-    ], { timeout: 30_000 });
+    // yt-dlp may exit with code 1 even when some subtitles downloaded successfully
+    // (e.g. ko succeeds but en fails with 429). We must check for files regardless.
+    try {
+      await execFileAsync("yt-dlp", [
+        "--write-sub",
+        "--write-auto-sub",
+        "--sub-lang", "ko,en",
+        "--sub-format", "vtt",
+        "--skip-download",
+        "--no-warnings",
+        "--quiet",
+        "-o", join(tempDir, "%(id)s"),
+        `https://www.youtube.com/watch?v=${videoId}`,
+      ], { timeout: 30_000 });
+    } catch (cmdError) {
+      // yt-dlp exited non-zero — log but continue to check for partial downloads
+      log.info(
+        `yt-dlp exited with error for ${videoId} (checking for partial downloads):`,
+        cmdError instanceof Error ? cmdError.message : "Unknown error",
+      );
+    }
 
     // Find downloaded .vtt file — prefer ko over en
     const files = await readdir(tempDir);
@@ -342,15 +352,18 @@ export async function getVideoTranscript(videoId: string): Promise<VideoTranscri
     const vttFile = koFile ?? enFile ?? files.find(f => f.endsWith(".vtt"));
 
     if (!vttFile) {
+      log.info(`No subtitle files found for ${videoId}`);
       return { text: "", available: false };
     }
 
     const vttContent = await readFile(join(tempDir, vttFile), "utf-8");
     const text = parseVtt(vttContent);
 
-    return text.length > 0
-      ? { text, available: true }
-      : { text: "", available: false };
+    if (text.length > 0) {
+      log.info(`Transcript extracted for ${videoId}: ${text.length} chars (${vttFile})`);
+      return { text, available: true };
+    }
+    return { text: "", available: false };
   } catch (error) {
     log.info(
       `Transcript not available for video ${videoId}:`,

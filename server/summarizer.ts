@@ -7,6 +7,25 @@ import { getOrFetchTranscript } from "./db";
 const log = createLogger("Summarizer");
 
 /**
+ * Clean description text by removing ads, membership promotions, URLs, and SNS links
+ */
+function cleanDescription(desc: string): string {
+  return desc
+    .split('\n')
+    .filter(line => {
+      const l = line.trim().toLowerCase();
+      if (l.startsWith('http') || l.startsWith('www.')) return false;
+      if (l.includes('멤버십') || l.includes('구독')) return false;
+      if (l.includes('@') || l.includes('#')) return false;
+      if (l.includes('instagram') || l.includes('twitter') || l.includes('discord')) return false;
+      if (l.length < 3) return false;
+      return true;
+    })
+    .join('\n')
+    .trim();
+}
+
+/**
  * Generate AI summary for a YouTube video
  * Returns both brief and detailed summaries
  */
@@ -22,8 +41,27 @@ export async function generateVideoSummary(
     const transcript = await getOrFetchTranscript(videoId);
 
     // Prepare content for summarization
-    // Use transcript if available, otherwise fall back to description
-    const videoContent = transcript.available && transcript.text ? transcript.text : (description || title);
+    // Use transcript if available, otherwise fall back to cleaned description
+    let videoContent: string;
+    let contentSource: string;
+
+    if (transcript.available && transcript.text) {
+      videoContent = transcript.text;
+      contentSource = "transcript";
+    } else {
+      const cleaned = cleanDescription(description || title);
+      if (cleaned.length < 50) {
+        log.warn(`Summarization skipped for ${videoId}: no transcript, description too short (${cleaned.length} chars)`);
+        return {
+          brief: "자막을 가져올 수 없어 요약이 제한됩니다. 영상을 직접 시청해주세요.",
+          detailed: "자막을 가져올 수 없어 상세 요약을 생성할 수 없습니다.",
+        };
+      }
+      videoContent = cleaned;
+      contentSource = "description";
+    }
+
+    log.info(`Summarizing ${videoId}: source=${contentSource}, contentLength=${videoContent.length}`);
 
     if (!videoContent || videoContent.trim().length === 0) {
       return {
