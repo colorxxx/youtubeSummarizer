@@ -62,12 +62,28 @@ async function startServer() {
       results.whichYtDlp = { success: false, error: err instanceof Error ? err.message : String(err) };
     }
 
-    // 2. yt-dlp --version
+    // 2. yt-dlp --version (binary)
     try {
       const { stdout } = await execFileAsync("yt-dlp", ["--version"]);
       results.ytDlpVersion = { success: true, version: stdout.trim() };
     } catch (err) {
       results.ytDlpVersion = { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 2b. python3 -m yt_dlp --version (module)
+    try {
+      const { stdout } = await execFileAsync("python3", ["-m", "yt_dlp", "--version"]);
+      results.ytDlpModuleVersion = { success: true, version: stdout.trim() };
+    } catch (err) {
+      results.ytDlpModuleVersion = { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 2c. pip3 show yt-dlp
+    try {
+      const { stdout } = await execFileAsync("pip3", ["show", "yt-dlp"]);
+      results.pipShowYtDlp = { success: true, info: stdout.trim() };
+    } catch (err) {
+      results.pipShowYtDlp = { success: false, error: err instanceof Error ? err.message : String(err) };
     }
 
     // 3. Actual subtitle fetch test

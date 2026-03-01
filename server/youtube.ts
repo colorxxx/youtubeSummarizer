@@ -326,7 +326,8 @@ export async function getVideoTranscript(videoId: string): Promise<VideoTranscri
     // yt-dlp may exit with code 1 even when some subtitles downloaded successfully
     // (e.g. ko succeeds but en fails with 429). We must check for files regardless.
     try {
-      await execFileAsync("yt-dlp", [
+      await execFileAsync("python3", [
+        "-m", "yt_dlp",
         "--write-sub",
         "--write-auto-sub",
         "--sub-lang", "ko,en",
