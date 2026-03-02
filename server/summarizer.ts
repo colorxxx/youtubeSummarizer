@@ -75,12 +75,12 @@ export async function generateVideoSummary(
 
     log.info(`Using provider: ${provider} (briefTranscript: ${limits.briefTranscript}, detailedTranscript: ${limits.detailedTranscript})`);
 
-    // Generate brief summary
+    // Generate brief summary (2~4 sentences, core message only)
     const briefResponse = await invokeLLM({
       messages: [
         {
           role: "user",
-          content: `아래 영상 자막의 핵심을 한국어로 요약하세요.\n"영상에서는" 같은 메타 표현 없이 정보를 직접 서술합니다.\n홍보, 광고, 이벤트 안내(일시·장소·신청 등), 구독 유도, 스폰서 언급, 투자 면책 조항은 모두 제외하고 실질적 지식·인사이트·주장에만 집중합니다.\n\n## 한줄 요약\n(핵심 메시지 1문장)\n\n## 핵심 포인트\n(5~7개 불릿포인트, 각각 구체적 사실 포함)\n\n---\n자막:\n${videoContent.substring(0, limits.briefTranscript)}`,
+          content: `아래 영상 자막의 핵심을 한국어 2~3문장(긴 영상은 최대 4문장)으로 요약하세요.\n\n[원칙]\n- 제목·헤더·불릿 없이 평서문만 작성.\n- "영상에서는" 같은 메타 표현 없이 정보를 직접 서술.\n- 홍보, 광고, 이벤트, 구독 유도, 스폰서, 투자 면책은 모두 제외.\n- 가장 중요한 주장·결론·인사이트만 남기고 나머지는 버린다.\n\n---\n자막:\n${videoContent.substring(0, limits.briefTranscript)}`,
         },
       ],
     }, provider);
