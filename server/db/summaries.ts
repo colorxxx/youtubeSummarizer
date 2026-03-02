@@ -164,7 +164,7 @@ export async function getSummariesGroupedByChannel(userId: number) {
   if (!db) return [];
 
   const userSubs = await getUserSubscriptions(userId);
-  const allSummaries = await getUserSummaries(userId, 200);
+  const allSummaries = await getUserSummaries(userId, 4000);
 
   const videoIds = allSummaries.map((s) => s.videoId);
   const allVideos = await getVideosByIds(videoIds);
