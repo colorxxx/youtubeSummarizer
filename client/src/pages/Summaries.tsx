@@ -36,6 +36,16 @@ export default function Summaries() {
     },
   });
 
+  const refreshMutation = trpc.summaries.refresh.useMutation({
+    onSuccess: () => {
+      toast.success("요약을 다시 생성 중입니다");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error("새로고침 실패: " + error.message);
+    },
+  });
+
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / limit);
@@ -124,8 +134,10 @@ export default function Summaries() {
                 onChat={() => setChatVideo({ videoId: summary.videoId, title: summary.videoTitle || "" })}
                 onBookmark={() => bookmarkMutation.mutate({ videoId: summary.videoId })}
                 onPlaylistAdd={() => setPlaylistVideo({ videoId: summary.videoId, title: summary.videoTitle || "" })}
+                onRefresh={() => refreshMutation.mutate({ summaryId: summary.id })}
                 onDelete={() => deleteMutation.mutate({ summaryId: summary.id })}
                 isBookmarkPending={bookmarkMutation.isPending}
+                isRefreshPending={refreshMutation.isPending}
                 isDeletePending={deleteMutation.isPending}
               />
             ))}

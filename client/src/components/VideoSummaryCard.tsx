@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bookmark, Clock, ListPlus, MessageCircle, Trash2, Youtube } from "lucide-react";
+import { Bookmark, Clock, ListPlus, MessageCircle, RefreshCw, Trash2, Youtube } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
 import { SummaryTabs } from "./SummaryTabs";
 import type { ReactNode } from "react";
@@ -24,8 +24,10 @@ interface VideoSummaryCardProps {
   onChat?: () => void;
   onBookmark?: () => void;
   onPlaylistAdd?: () => void;
+  onRefresh?: () => void;
   onDelete?: () => void;
   isBookmarkPending?: boolean;
+  isRefreshPending?: boolean;
   isDeletePending?: boolean;
   extraActions?: ReactNode;
   showSummarizedDate?: boolean;
@@ -38,8 +40,10 @@ export function VideoSummaryCard({
   onChat,
   onBookmark,
   onPlaylistAdd,
+  onRefresh,
   onDelete,
   isBookmarkPending,
+  isRefreshPending,
   isDeletePending,
   extraActions,
   showSummarizedDate = true,
@@ -116,6 +120,18 @@ export function VideoSummaryCard({
                     title="재생목록에 추가"
                   >
                     <ListPlus className="h-4 w-4" />
+                  </Button>
+                )}
+                {onRefresh && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    onClick={onRefresh}
+                    disabled={isRefreshPending}
+                    title="요약 새로고침"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isRefreshPending ? "animate-spin" : ""}`} />
                   </Button>
                 )}
                 {extraActions}

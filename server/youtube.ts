@@ -314,12 +314,19 @@ function parseVtt(vtt: string): string {
   return textLines.join(" ");
 }
 
+// --- Global rate limiter for yt-dlp transcript requests ---
+const TRANSCRIPT_MIN_INTERVAL = 5000; // 5s between yt-dlp calls
+let transcriptQueue: Promise<void> = Promise.resolve();
+let lastTranscriptTime = 0;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Get video transcript/captions using yt-dlp CLI.
- * Prefers Korean (ko) subtitles, falls back to English (en).
- * Uses temp directory for subtitle file output.
+ * Internal implementation: fetch transcript via yt-dlp CLI.
  */
-export async function getVideoTranscript(videoId: string): Promise<VideoTranscript> {
+async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
   const tempDir = await mkdtemp(join(tmpdir(), "yt-sub-"));
 
   try {
@@ -373,4 +380,34 @@ export async function getVideoTranscript(videoId: string): Promise<VideoTranscri
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/**
+ * Get video transcript/captions using yt-dlp CLI.
+ * Serialized through a global Promise-chain queue with minimum 5s interval
+ * to prevent YouTube 429 (Too Many Requests) errors.
+ */
+export function getVideoTranscript(videoId: string): Promise<VideoTranscript> {
+  const resultPromise = new Promise<VideoTranscript>((resolve, reject) => {
+    transcriptQueue = transcriptQueue
+      .then(async () => {
+        const elapsed = Date.now() - lastTranscriptTime;
+        if (elapsed < TRANSCRIPT_MIN_INTERVAL) {
+          const wait = TRANSCRIPT_MIN_INTERVAL - elapsed;
+          log.info(`Rate limit: waiting ${wait}ms before fetching transcript for ${videoId}`);
+          await sleep(wait);
+        }
+        lastTranscriptTime = Date.now();
+        const result = await fetchTranscriptImpl(videoId);
+        resolve(result);
+      })
+      .catch((error) => {
+        reject(error);
+      });
+  });
+
+  // Keep the queue chain alive even if this request fails
+  transcriptQueue = transcriptQueue.then(() => {}, () => {});
+
+  return resultPromise;
 }

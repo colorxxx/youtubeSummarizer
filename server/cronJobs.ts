@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { getAllSubscriptions, getSubscription, saveVideo, saveSummary, getVideoByVideoId } from "./db";
+import { getAllSubscriptions, getSubscription, saveVideo, saveSummary, getVideoByVideoId, getUserSummaryForVideo } from "./db";
 import { getChannelVideos } from "./youtube";
 import { generateVideoSummary } from "./summarizer";
 import { selectProviderForUser } from "./_core/llm";
@@ -57,29 +57,31 @@ export async function checkNewVideos() {
 
         // Process each new video
         for (const video of videos) {
-          // Check if we already have this video
           const existingVideo = await getVideoByVideoId(video.videoId);
-          if (existingVideo) {
-            videoCheckLog.info(`Video ${video.videoId} already exists, skipping`);
-            continue;
+
+          if (!existingVideo) {
+            totalNewVideos++;
+            await saveVideo({
+              videoId: video.videoId,
+              channelId: video.channelId,
+              title: video.title,
+              description: video.description,
+              publishedAt: video.publishedAt,
+              thumbnailUrl: video.thumbnailUrl,
+              duration: video.duration,
+            });
           }
-
-          totalNewVideos++;
-
-          // Save video to database
-          await saveVideo({
-            videoId: video.videoId,
-            channelId: video.channelId,
-            title: video.title,
-            description: video.description,
-            publishedAt: video.publishedAt,
-            thumbnailUrl: video.thumbnailUrl,
-            duration: video.duration,
-          });
 
           // Generate summaries for each user subscribed to this channel
           for (const sub of subs) {
             try {
+              // Skip if this user already has a summary for this video
+              const existingSummary = await getUserSummaryForVideo(sub.userId, video.videoId);
+              if (existingSummary) {
+                videoCheckLog.info(`Summary exists for video ${video.videoId}, user ${sub.userId}, skipping`);
+                continue;
+              }
+
               const provider = await selectProviderForUser(sub.userId, null);
               videoCheckLog.info(`Generating summary for video ${video.videoId}, user ${sub.userId} (provider: ${provider})`);
 
@@ -142,7 +144,6 @@ export async function checkChannelVideos(userId: number, channelId: string) {
     const existing = await getVideoByVideoId(video.videoId);
     if (existing) {
       // Video exists, but check if this user already has a summary
-      const { getUserSummaryForVideo } = await import("./db");
       const existingSummary = await getUserSummaryForVideo(userId, video.videoId);
       if (existingSummary) {
         channelRefreshLog.info(`Summary already exists for video ${video.videoId}, skipping`);

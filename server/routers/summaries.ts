@@ -27,6 +27,57 @@ export const summariesRouter = router({
       await deleteSummary(ctx.user.id, input.summaryId);
       return { success: true };
     }),
+  refresh: protectedProcedure
+    .input(z.object({ summaryId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { getUserSummaryForVideo, deleteSummary, getVideoByVideoId } = await import("../db");
+
+      // Get videoId from the summary before deleting
+      const { summaries } = await import("../../drizzle/schema");
+      const { getDb } = await import("../db/connection");
+      const { eq, and } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const [summary] = await db
+        .select({ videoId: summaries.videoId })
+        .from(summaries)
+        .where(and(eq(summaries.id, input.summaryId), eq(summaries.userId, ctx.user.id)));
+
+      if (!summary) {
+        throw new Error("요약을 찾을 수 없습니다");
+      }
+
+      // Verify video exists BEFORE deleting summary (prevent data loss)
+      const video = await getVideoByVideoId(summary.videoId);
+      if (!video) {
+        throw new Error("영상 정보를 찾을 수 없습니다");
+      }
+
+      // Delete summary + clear transcript cache
+      await deleteSummary(ctx.user.id, input.summaryId);
+
+      // Trigger re-summarization in background (skipExisting prevents duplicates from concurrent calls)
+      processVideosInBackground({
+        userId: ctx.user.id,
+        channelId: video.channelId,
+        channelName: "요약 새로고침",
+        videos: [{
+          videoId: video.videoId,
+          channelId: video.channelId,
+          title: video.title,
+          description: video.description ?? "",
+          publishedAt: video.publishedAt,
+          thumbnailUrl: video.thumbnailUrl ?? "",
+          duration: video.duration ?? undefined,
+        }],
+        skipExisting: true,
+        source: "direct",
+        userEmail: ctx.user.email,
+      });
+
+      return { success: true, message: "요약을 다시 생성 중입니다" };
+    }),
 });
 
 export const directSummaryRouter = router({
