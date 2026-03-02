@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -104,10 +103,11 @@ export function PaginationBar({ page, totalPages, onPageChange }: PaginationBarP
                   <button
                     type="button"
                     onClick={() => setJumpIndex(i)}
-                    className="cursor-pointer"
+                    className="group flex h-9 cursor-pointer flex-col items-center justify-center gap-0 px-2 hover:text-foreground"
                     title={`1~${totalPages} 페이지로 이동`}
                   >
-                    <PaginationEllipsis />
+                    <span className="text-sm leading-none">···</span>
+                    <span className="text-[10px] leading-tight text-muted-foreground group-hover:text-foreground">이동</span>
                   </button>
                 )}
               </PaginationItem>
