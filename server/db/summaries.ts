@@ -1,5 +1,5 @@
-import { eq, desc, and, like, count, gte, or, sql } from "drizzle-orm";
-import { InsertSummary, summaries, videos } from "../../drizzle/schema";
+import { eq, desc, and, like, count, gte, or, sql, exists, notExists } from "drizzle-orm";
+import { InsertSummary, summaries, videos, bookmarks, playlists, playlistVideos } from "../../drizzle/schema";
 import { getDb } from './connection';
 import { getUserSubscriptions } from './subscriptions';
 import { getVideosByIds } from './videos';
@@ -31,11 +31,14 @@ export async function getUserSummaries(userId: number, limit: number = 50) {
   return db.select().from(summaries).where(eq(summaries.userId, userId)).orderBy(desc(summaries.createdAt)).limit(limit);
 }
 
+export type SummaryFilter = "uncategorized" | "bookmarked" | "in_playlist";
+
 export async function getUserSummariesPaginated(
   userId: number,
   page: number = 1,
   limit: number = 10,
   search?: string,
+  filter?: SummaryFilter[],
 ) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
@@ -50,9 +53,28 @@ export async function getUserSummariesPaginated(
       )
     : undefined;
 
-  const baseConditions = search
-    ? and(eq(summaries.userId, userId), searchCondition)
-    : eq(summaries.userId, userId);
+  // Build filter condition from checkbox selections (OR combination)
+  let filterCondition;
+  if (filter && filter.length > 0) {
+    const bookmarkExistsQuery = db.select({ one: sql`1` }).from(bookmarks).where(
+      and(eq(bookmarks.videoId, summaries.videoId), eq(bookmarks.userId, userId))
+    );
+    const playlistExistsQuery = db.select({ one: sql`1` }).from(playlistVideos)
+      .innerJoin(playlists, eq(playlists.id, playlistVideos.playlistId))
+      .where(
+        and(eq(playlistVideos.videoId, summaries.videoId), eq(playlists.userId, userId))
+      );
+
+    const conditions = [];
+    if (filter.includes("bookmarked")) conditions.push(exists(bookmarkExistsQuery));
+    if (filter.includes("in_playlist")) conditions.push(exists(playlistExistsQuery));
+    if (filter.includes("uncategorized")) {
+      conditions.push(and(notExists(bookmarkExistsQuery), notExists(playlistExistsQuery)));
+    }
+    filterCondition = conditions.length === 1 ? conditions[0] : or(...conditions);
+  }
+
+  const baseConditions = and(eq(summaries.userId, userId), searchCondition, filterCondition);
 
   const [countResult, items] = await Promise.all([
     db

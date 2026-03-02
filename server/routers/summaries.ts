@@ -9,6 +9,7 @@ export const summariesRouter = router({
         page: z.number().min(1).default(1),
         limit: z.number().min(1).max(50).default(10),
         search: z.string().optional(),
+        filter: z.array(z.enum(["uncategorized", "bookmarked", "in_playlist"])).optional(),
       }).optional()
     )
     .query(async ({ ctx, input }) => {
@@ -16,7 +17,8 @@ export const summariesRouter = router({
       const page = input?.page ?? 1;
       const limit = input?.limit ?? 10;
       const search = input?.search;
-      return getUserSummariesPaginated(ctx.user.id, page, limit, search);
+      const filter = input?.filter;
+      return getUserSummariesPaginated(ctx.user.id, page, limit, search, filter);
     }),
   delete: protectedProcedure
     .input(z.object({ summaryId: z.number() }))

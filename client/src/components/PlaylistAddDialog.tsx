@@ -18,9 +18,10 @@ interface PlaylistAddDialogProps {
   videoTitle: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onPlaylistChange?: () => void;
 }
 
-export function PlaylistAddDialog({ videoId, videoTitle, open, onOpenChange }: PlaylistAddDialogProps) {
+export function PlaylistAddDialog({ videoId, videoTitle, open, onOpenChange, onPlaylistChange }: PlaylistAddDialogProps) {
   const [newPlaylistName, setNewPlaylistName] = useState("");
 
   const playlistsQuery = trpc.playlists.list.useQuery(undefined, { enabled: open });
@@ -32,6 +33,7 @@ export function PlaylistAddDialog({ videoId, videoTitle, open, onOpenChange }: P
   const addVideoMutation = trpc.playlists.addVideo.useMutation({
     onSuccess: () => {
       videoPlaylistsQuery.refetch();
+      onPlaylistChange?.();
       toast.success("재생목록에 추가되었습니다");
     },
     onError: (error) => toast.error(error.message),
@@ -40,6 +42,7 @@ export function PlaylistAddDialog({ videoId, videoTitle, open, onOpenChange }: P
   const removeVideoMutation = trpc.playlists.removeVideo.useMutation({
     onSuccess: () => {
       videoPlaylistsQuery.refetch();
+      onPlaylistChange?.();
       toast.success("재생목록에서 제거되었습니다");
     },
     onError: (error) => toast.error(error.message),

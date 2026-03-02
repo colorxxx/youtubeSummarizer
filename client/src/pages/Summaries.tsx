@@ -9,17 +9,21 @@ import { PlaylistAddDialog } from "@/components/PlaylistAddDialog";
 import { VideoSummaryCard } from "@/components/VideoSummaryCard";
 import { PaginationBar } from "@/components/PaginationBar";
 import { SearchInput } from "@/components/SearchInput";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 export default function Summaries() {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<Array<"uncategorized" | "bookmarked" | "in_playlist">>([]);
   const limit = 10;
 
   const { data, isLoading, refetch } = trpc.summaries.list.useQuery({
     page,
     limit,
     search: search || undefined,
+    filter: filters.length > 0 ? filters : undefined,
   });
 
   const deleteMutation = trpc.summaries.delete.useMutation({
@@ -46,6 +50,7 @@ export default function Summaries() {
     onSuccess: (result) => {
       toast.success(result.bookmarked ? "북마크에 추가되었습니다" : "북마크가 해제되었습니다");
       bookmarkCheckQuery.refetch();
+      if (filters.length > 0) refetch();
     },
   });
 
@@ -79,6 +84,31 @@ export default function Summaries() {
         onChange={(v) => { setSearch(v); setPage(1); }}
       />
 
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
+        <span className="text-sm font-medium text-muted-foreground">필터:</span>
+        {([
+          { value: "uncategorized", label: "미분류" },
+          { value: "bookmarked", label: "북마크됨" },
+          { value: "in_playlist", label: "재생목록" },
+        ] as const).map(({ value, label }) => (
+          <div key={value} className="flex items-center gap-1.5">
+            <Checkbox
+              id={`filter-${value}`}
+              checked={filters.includes(value)}
+              onCheckedChange={(checked) => {
+                setFilters(prev =>
+                  checked ? [...prev, value] : prev.filter(f => f !== value)
+                );
+                setPage(1);
+              }}
+            />
+            <Label htmlFor={`filter-${value}`} className="text-sm cursor-pointer">
+              {label}
+            </Label>
+          </div>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -109,12 +139,18 @@ export default function Summaries() {
             <FileText className="h-16 w-16 mx-auto text-muted-foreground" />
             <div>
               <h3 className="text-xl font-semibold mb-2">
-                {search ? "검색 결과가 없습니다" : "아직 요약이 없습니다"}
+                {filters.length > 0
+                  ? "필터 조건에 맞는 요약이 없습니다"
+                  : search
+                    ? "검색 결과가 없습니다"
+                    : "아직 요약이 없습니다"}
               </h3>
               <p className="text-muted-foreground">
-                {search
-                  ? "다른 검색어를 입력해보세요"
-                  : "채널을 구독하면 새 영상의 요약이 여기에 표시됩니다"}
+                {filters.length > 0
+                  ? "다른 필터를 선택하거나 필터를 해제해보세요"
+                  : search
+                    ? "다른 검색어를 입력해보세요"
+                    : "채널을 구독하면 새 영상의 요약이 여기에 표시됩니다"}
               </p>
             </div>
           </CardContent>
@@ -136,6 +172,7 @@ export default function Summaries() {
           videoTitle={playlistVideo.title}
           open={!!playlistVideo}
           onOpenChange={(open) => { if (!open) setPlaylistVideo(null); }}
+          onPlaylistChange={() => { if (filters.length > 0) refetch(); }}
         />
       )}
     </div>
