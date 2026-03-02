@@ -8,6 +8,9 @@ YouTube 채널을 구독하면 최신 영상을 자동으로 AI 요약해주는 
 - **AI 요약 (한국어)**: 영상 자막(transcript) 기반 요약 생성, 자막 없으면 제목+설명으로 fallback
 - **요약 이중 구조**: 간략 요약(3~5문장) + 상세 요약(영상 길이에 따라 5~30문장)
 - **대시보드**: 채널별로 그룹핑된 요약 뷰, 마크다운 렌더링
+- **직접 요약**: URL 입력으로 구독 없이 단일 영상 즉시 요약
+- **AI 채팅**: 요약 기반 후속 질문 (SSE 스트리밍)
+- **북마크 & 플레이리스트**: 요약 저장 및 정리
 - **자동 스케줄링**: 매일 오전 9시(KST) cron job으로 새 영상 체크 및 요약 생성
 - **수동 새로고침**: 대시보드에서 즉시 새 영상 체크 가능
 - **채널별 설정**: 구독 채널별 요약할 영상 수(1~10) 설정
@@ -38,8 +41,8 @@ YouTube 채널을 구독하면 최신 영상을 자동으로 AI 요약해주는 
 | MySQL / TiDB | - | 데이터베이스 |
 | node-cron | 4 | 스케줄링 (매일 9AM KST) |
 | Jose | 6 | JWT 세션 관리 |
-| youtube-transcript | 1.2 | 영상 자막 추출 |
-| Gemini 2.5 Flash | - | AI 요약 (Forge API 경유) |
+| yt-dlp | standalone | 영상 자막 추출 (standalone 바이너리) |
+| DeepSeek Chat | - | AI 요약 (OpenAI 호환 API) |
 
 ### 개발 도구
 | 기술 | 용도 |
@@ -61,10 +64,18 @@ YouTube 채널을 구독하면 최신 영상을 자동으로 AI 요약해주는 
 │   │   │   ├── Dashboard.tsx        #   채널별 요약 대시보드
 │   │   │   ├── Subscriptions.tsx    #   구독 관리 (검색/추가/삭제/설정)
 │   │   │   ├── Summaries.tsx        #   전체 요약 목록
+│   │   │   ├── DirectSummary.tsx    #   URL 직접 요약
+│   │   │   ├── Bookmarks.tsx        #   북마크 목록
+│   │   │   ├── Playlists.tsx        #   플레이리스트 관리
 │   │   │   └── Settings.tsx         #   이메일/알림 설정
 │   │   ├── components/              # 공통 컴포넌트
 │   │   │   ├── ui/                  #   shadcn/ui 컴포넌트 (50+)
-│   │   │   └── DashboardLayout.tsx  #   사이드바 레이아웃
+│   │   │   ├── DashboardLayout.tsx  #   사이드바 레이아웃
+│   │   │   ├── VideoSummaryCard.tsx #   영상 요약 카드 (SummaryTabs 내장)
+│   │   │   ├── SummaryTabs.tsx      #   간단/상세 요약 탭
+│   │   │   ├── AIChatBox.tsx        #   AI 채팅 컴포넌트
+│   │   │   ├── PaginationBar.tsx    #   페이지네이션
+│   │   │   └── SearchInput.tsx      #   디바운스 검색 입력
 │   │   ├── _core/hooks/useAuth.ts   # 인증 상태 훅
 │   │   ├── contexts/ThemeContext.tsx # 테마 (light/dark)
 │   │   ├── lib/trpc.ts              # tRPC 클라이언트 설정
@@ -74,26 +85,50 @@ YouTube 채널을 구독하면 최신 영상을 자동으로 AI 요약해주는 
 │
 ├── server/                          # Express + tRPC 백엔드
 │   ├── _core/                       # 코어 인프라
-│   │   ├── index.ts                 #   서버 부트스트랩
+│   │   ├── index.ts                 #   서버 부트스트랩 + 진단 엔드포인트
 │   │   ├── trpc.ts                  #   프로시저 정의 (public/protected/admin)
 │   │   ├── context.ts               #   요청 컨텍스트 (인증)
 │   │   ├── env.ts                   #   환경변수
-│   │   ├── llm.ts                   #   Gemini 2.5 Flash 연동
+│   │   ├── llm.ts                   #   DeepSeek Chat 연동 (OpenAI 호환)
+│   │   ├── logger.ts                #   로거
 │   │   ├── sdk.ts                   #   OAuth + 세션 관리
 │   │   └── oauth.ts                 #   OAuth 콜백 핸들러
-│   ├── routers.ts                   # API 엔드포인트 정의
-│   ├── db.ts                        # DB CRUD 함수
-│   ├── youtube.ts                   # YouTube Data API v3 연동
-│   ├── summarizer.ts                # AI 요약 생성 로직
+│   ├── routers/                     # tRPC 라우터 (도메인별 분리)
+│   │   ├── index.ts                 #   appRouter 조합 + AppRouter 타입
+│   │   ├── auth.ts                  #   인증 (me, logout)
+│   │   ├── subscriptions.ts         #   구독 CRUD
+│   │   ├── dashboard.ts             #   대시보드 (채널별 요약)
+│   │   ├── youtube.ts               #   채널 검색
+│   │   ├── videos.ts                #   영상 목록
+│   │   ├── summaries.ts             #   요약 CRUD + 직접 요약
+│   │   ├── chat.ts                  #   AI 채팅
+│   │   ├── bookmarks.ts             #   북마크
+│   │   ├── playlists.ts             #   플레이리스트
+│   │   ├── settings.ts              #   사용자 설정
+│   │   └── backgroundTasks.ts       #   백그라운드 작업 상태
+│   ├── db/                          # DB CRUD (도메인별 분리)
+│   │   ├── index.ts                 #   barrel re-export
+│   │   ├── connection.ts            #   DB 연결
+│   │   ├── users.ts                 #   사용자
+│   │   ├── subscriptions.ts         #   구독
+│   │   ├── videos.ts                #   영상
+│   │   ├── summaries.ts             #   요약
+│   │   ├── bookmarks.ts             #   북마크
+│   │   ├── playlists.ts             #   플레이리스트
+│   │   ├── chat.ts                  #   채팅 히스토리
+│   │   └── settings.ts              #   사용자 설정
+│   ├── youtube.ts                   # YouTube Data API v3 + yt-dlp 자막
+│   ├── summarizer.ts                # AI 요약 생성 (DeepSeek)
 │   ├── videoUtils.ts                # 영상 길이 파싱 & 요약 길이 산정
-│   ├── cronJobs.ts                  # 일일 자동 체크 (node-cron)
-│   ├── mailer.ts                    # 이메일 발송 (미구현, 콘솔 로깅)
-│   ├── scheduler.ts                 # 스케줄러
-│   └── *.test.ts                    # 테스트 파일들
+│   ├── backgroundTasks.ts           # 백그라운드 영상 처리 (공통)
+│   ├── chatStream.ts                # AI 채팅 SSE 스트리밍
+│   ├── cronJobs.ts                  # 일일 자동 체크 (node-cron, 09:00 KST)
+│   ├── routers.ts                   # (하위호환) routers/index.ts re-export
+│   └── db.ts                        # (하위호환) db/index.ts re-export
 │
 ├── drizzle/                         # DB 스키마 & 마이그레이션
-│   ├── schema.ts                    # 테이블 정의 (5개)
-│   └── 0000~0004_*.sql              # 마이그레이션 파일
+│   ├── schema.ts                    # 테이블 정의
+│   └── *.sql                        # 마이그레이션 파일
 │
 ├── shared/                          # 클라이언트/서버 공유
 │   ├── types.ts                     # DB 타입 re-export
@@ -167,7 +202,7 @@ lastSignedIn                           createdAt                              up
   → YouTube Data API로 최근 영상 수집
   → 영상별 자막(transcript) 추출 시도
   → 자막 없으면 제목+설명으로 fallback
-  → Gemini 2.5 Flash로 한국어 요약 생성
+  → DeepSeek Chat으로 한국어 요약 생성
   → 영상 길이 기반 요약 분량 조절:
       - 짧은 영상 (<5분):  간략 2~3문장, 상세 5~7문장
       - 중간 영상 (5~20분): 간략 3~4문장, 상세 10~15문장
@@ -177,7 +212,7 @@ lastSignedIn                           createdAt                              up
 
 ### 인증 흐름
 ```
-Manus OAuth 로그인 → 콜백으로 code 수신 → 토큰 교환
+Google OAuth 로그인 → 콜백으로 code 수신 → 토큰 교환
 → 사용자 정보 조회 → DB upsert → JWT 생성 → httpOnly 쿠키 설정
 ```
 
@@ -196,11 +231,11 @@ Manus OAuth 로그인 → 콜백으로 code 수신 → 토큰 교환
 | `DATABASE_URL` | MySQL/TiDB 연결 문자열 |
 | `YOUTUBE_API_KEY` | YouTube Data API v3 키 |
 | `JWT_SECRET` | JWT 서명 시크릿 |
-| `OWNER_OPEN_ID` | 관리자 자동 승격 대상 OpenID |
-| `VITE_APP_ID` | 앱 식별자 |
-| `OAUTH_SERVER_URL` | OAuth 서버 URL |
-| `BUILT_IN_FORGE_API_URL` | Gemini LLM API 엔드포인트 |
-| `BUILT_IN_FORGE_API_KEY` | Gemini LLM API 키 |
+| `GOOGLE_CLIENT_ID` | Google OAuth 클라이언트 ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 시크릿 |
+| `DEEPSEEK_API_KEY` | DeepSeek API 키 |
+| `DEEPSEEK_API_URL` | DeepSeek API URL |
+| `VITE_GOOGLE_CLIENT_ID` | 클라이언트용 Google OAuth ID |
 
 ## 시작하기
 
@@ -242,14 +277,33 @@ pnpm test          # Vitest 실행
 | `/dashboard` | Dashboard | 채널별 요약 대시보드 (접기/펼치기) |
 | `/subscriptions` | Subscriptions | 구독 관리 (검색/추가/삭제/설정) |
 | `/summaries` | Summaries | 전체 요약 목록 |
+| `/direct-summary` | DirectSummary | URL 직접 요약 |
+| `/bookmarks` | Bookmarks | 북마크 목록 |
+| `/playlists` | Playlists | 플레이리스트 관리 |
 | `/settings` | Settings | 이메일/알림/빈도 설정 |
+
+## 진단 엔드포인트 (배포 디버깅)
+
+로컬에서는 정상인데 배포 환경에서 안 되는 문제를 빠르게 파악하기 위한 엔드포인트.
+
+| 엔드포인트 | 설명 |
+|------------|------|
+| `GET /api/debug/yt-dlp` | yt-dlp 바이너리 존재/버전, 자막 fetch 테스트, python3/pip3 상태, 환경 정보(PATH, Node버전, OS) 일괄 확인 |
+
+**응답 항목:**
+- `whichYtDlp` — yt-dlp 바이너리 경로
+- `ytDlpVersion` — yt-dlp 버전 (standalone binary)
+- `ytDlpModuleVersion` — python3 -m yt_dlp 버전 (모듈)
+- `pipShowYtDlp` — pip3 show yt-dlp 정보
+- `transcriptFetch` — 실제 자막 fetch 테스트 결과 (텍스트 길이, 미리보기)
+- `whichCurl` — curl 존재 여부
+- `findYtDlp` / `findPython3` — 시스템 전체 바이너리 탐색
+- `environment` — PATH, Node.js 버전, platform, arch, tmpdir
 
 ## 현재 상태 & 알려진 제한
 
-- **이메일 발송 미구현**: 현재 콘솔 로깅만 수행. 실제 이메일 서비스(SendGrid, Resend 등) 연동 필요
 - **YouTube API 일일 쿼터**: Google Cloud Console에서 사용량 모니터링 필요
-- **AI 요약**: Manus Forge API 경유 Gemini 2.5 Flash 사용
-- **Manus 플랫폼 의존**: OAuth, LLM, 알림 등이 Manus 인프라에 의존
+- **AI 요약**: DeepSeek Chat (OpenAI 호환 API) 사용
 
 ## License
 
