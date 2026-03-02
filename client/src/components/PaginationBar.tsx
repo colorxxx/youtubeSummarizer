@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import {
   Pagination,
   PaginationContent,
@@ -30,7 +31,54 @@ function getPageNumbers(page: number, totalPages: number): (number | "ellipsis")
   return pages;
 }
 
+function PageJumpInput({
+  totalPages,
+  onPageChange,
+  onClose,
+}: {
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = () => {
+    const num = parseInt(value, 10);
+    if (num >= 1 && num <= totalPages) {
+      onPageChange(num);
+    }
+    onClose();
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      inputMode="numeric"
+      value={value}
+      placeholder="Go"
+      onChange={(e) => {
+        const v = e.target.value.replace(/\D/g, "");
+        setValue(v);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") submit();
+        if (e.key === "Escape") onClose();
+      }}
+      onBlur={onClose}
+      className="h-9 w-12 rounded-md border border-input bg-background text-center text-sm outline-none focus:ring-2 focus:ring-ring"
+    />
+  );
+}
+
 export function PaginationBar({ page, totalPages, onPageChange }: PaginationBarProps) {
+  const [jumpIndex, setJumpIndex] = useState<number | null>(null);
+
   if (totalPages <= 1) return null;
 
   return (
@@ -46,7 +94,22 @@ export function PaginationBar({ page, totalPages, onPageChange }: PaginationBarP
           {getPageNumbers(page, totalPages).map((p, i) =>
             p === "ellipsis" ? (
               <PaginationItem key={`ellipsis-${i}`}>
-                <PaginationEllipsis />
+                {jumpIndex === i ? (
+                  <PageJumpInput
+                    totalPages={totalPages}
+                    onPageChange={onPageChange}
+                    onClose={() => setJumpIndex(null)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setJumpIndex(i)}
+                    className="cursor-pointer"
+                    title={`1~${totalPages} 페이지로 이동`}
+                  >
+                    <PaginationEllipsis />
+                  </button>
+                )}
               </PaginationItem>
             ) : (
               <PaginationItem key={p}>
