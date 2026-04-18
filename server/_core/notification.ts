@@ -1,4 +1,9 @@
 import { TRPCError } from "@trpc/server";
+import nodemailer from "nodemailer";
+import { ENV } from "./env";
+import { createLogger } from "./logger";
+
+const log = createLogger("Notification");
 
 export type NotificationPayload = {
   title: string;
@@ -46,14 +51,50 @@ const validatePayload = (input: NotificationPayload): NotificationPayload => {
   return { title, content };
 };
 
+/** Gmail SMTP transporter (lazy-initialized) */
+let transporter: nodemailer.Transporter | null = null;
+
+function getTransporter(): nodemailer.Transporter | null {
+  if (transporter) return transporter;
+  if (!ENV.gmailAppPassword) return null;
+
+  transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: ENV.premiumEmail,
+      pass: ENV.gmailAppPassword,
+    },
+  });
+  return transporter;
+}
+
 /**
- * Logs a notification to the console.
- * Can be replaced with email/Slack integration in the future.
+ * Send notification to the owner.
+ * Uses Gmail SMTP if GMAIL_APP_PASSWORD is set, otherwise falls back to console.log.
  */
 export async function notifyOwner(
   payload: NotificationPayload
 ): Promise<boolean> {
   const { title, content } = validatePayload(payload);
-  console.log(`[Notification] ${title}: ${content}`);
-  return true;
+
+  const smtp = getTransporter();
+  if (!smtp) {
+    log.info(`[Fallback] ${title}: ${content}`);
+    return true;
+  }
+
+  try {
+    await smtp.sendMail({
+      from: ENV.premiumEmail,
+      to: ENV.premiumEmail,
+      subject: `[YoutubeSummarizer] ${title}`,
+      text: content,
+    });
+    log.info(`Email sent: ${title}`);
+    return true;
+  } catch (error) {
+    log.error("Failed to send email:", error);
+    log.info(`[Fallback] ${title}: ${content}`);
+    return false;
+  }
 }

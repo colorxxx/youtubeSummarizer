@@ -10,6 +10,7 @@ export const ENV = {
   qwenApiUrl: process.env.QWEN_API_URL ?? "https://dashscope-intl.aliyuncs.com/compatible-mode",
   qwenApiKey: process.env.QWEN_API_KEY ?? "",
   premiumEmail: process.env.PREMIUM_EMAIL ?? "chicider@gmail.com",
+  gmailAppPassword: process.env.GMAIL_APP_PASSWORD ?? "",
   monthlyFreeLimit: Number(process.env.MONTHLY_FREE_LIMIT ?? "1000"),
   tavilyApiKey: process.env.TAVILY_API_KEY ?? "",
 };

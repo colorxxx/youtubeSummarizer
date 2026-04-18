@@ -6,11 +6,31 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
 import { createLogger } from "./_core/logger";
+import { notifyOwner } from "./_core/notification";
 import { parseDuration } from "./videoUtils";
 
 const execFileAsync = promisify(execFile);
 
 const log = createLogger("YouTube");
+
+// --- Cookie expiration detection + throttled alert ---
+const BOT_DETECTION_PATTERN = "Sign in to confirm you're not a bot";
+let lastCookieAlertTime = 0;
+const COOKIE_ALERT_COOLDOWN = 6 * 60 * 60 * 1000; // 6 hours
+
+function checkAndAlertCookieExpiry(errorMessage: string, videoId: string): void {
+  if (!errorMessage.includes(BOT_DETECTION_PATTERN)) return;
+
+  const now = Date.now();
+  if (now - lastCookieAlertTime < COOKIE_ALERT_COOLDOWN) return;
+  lastCookieAlertTime = now;
+
+  log.error(`YouTube cookie expired! Bot detection triggered for ${videoId}`);
+  notifyOwner({
+    title: "⚠️ YouTube 쿠키 만료",
+    content: `yt-dlp가 YouTube 봇 차단에 걸렸습니다.\n\n영상: ${videoId}\n시각: ${new Date().toISOString()}\n\n로컬에서 쿠키 갱신 스크립트를 실행해주세요:\n./scripts/refresh-cookies.sh`,
+  }).catch(() => {});
+}
 
 // --- YouTube cookies for yt-dlp bot detection bypass ---
 const YT_COOKIES_PATH = join(tmpdir(), "yt-cookies.txt");
@@ -429,10 +449,9 @@ async function fetchTranscriptViaWhisper(videoId: string): Promise<VideoTranscri
 
     return null;
   } catch (error) {
-    log.warn(
-      `Groq Whisper fallback failed for ${videoId}:`,
-      error instanceof Error ? error.message : "Unknown error",
-    );
+    const errMsg = error instanceof Error ? error.message : "Unknown error";
+    log.warn(`Groq Whisper fallback failed for ${videoId}:`, errMsg);
+    checkAndAlertCookieExpiry(errMsg, videoId);
     return null;
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => {});
@@ -464,11 +483,10 @@ async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
         `https://www.youtube.com/watch?v=${videoId}`,
       ], { timeout: 30_000 });
     } catch (cmdError) {
+      const errMsg = cmdError instanceof Error ? cmdError.message : "Unknown error";
       // yt-dlp exited non-zero — log but continue to check for partial downloads
-      log.info(
-        `yt-dlp exited with error for ${videoId} (checking for partial downloads):`,
-        cmdError instanceof Error ? cmdError.message : "Unknown error",
-      );
+      log.info(`yt-dlp exited with error for ${videoId} (checking for partial downloads):`, errMsg);
+      checkAndAlertCookieExpiry(errMsg, videoId);
     }
 
     // Find downloaded .vtt file — prefer ko over en
