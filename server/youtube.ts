@@ -1,6 +1,6 @@
 import axios from "axios";
 import { execFile } from "child_process";
-import { mkdtemp, readdir, readFile, rm } from "fs/promises";
+import { mkdtemp, readdir, readFile, rm, stat } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
@@ -324,7 +324,86 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Fallback: download audio via yt-dlp and transcribe via Groq Whisper API.
+ * Returns null if GROQ_API_KEY is not set or transcription fails.
+ */
+async function fetchTranscriptViaWhisper(videoId: string): Promise<VideoTranscript | null> {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) {
+    log.info(`Groq Whisper fallback skipped for ${videoId}: GROQ_API_KEY not set`);
+    return null;
+  }
+
+  const tempDir = await mkdtemp(join(tmpdir(), "yt-audio-"));
+  const audioPath = join(tempDir, `${videoId}.mp3`);
+
+  try {
+    // Download audio only (low bitrate to stay under 25MB limit)
+    await execFileAsync("yt-dlp", [
+      "-x",
+      "--audio-format", "mp3",
+      "--audio-quality", "5",
+      "--no-warnings",
+      "--quiet",
+      "-o", audioPath,
+      `https://www.youtube.com/watch?v=${videoId}`,
+    ], { timeout: 120_000 });
+
+    // Check file size (Groq limit: 25MB)
+    const fileStat = await stat(audioPath);
+    if (fileStat.size > 25 * 1024 * 1024) {
+      log.warn(`Groq Whisper skipped for ${videoId}: audio too large (${(fileStat.size / 1024 / 1024).toFixed(1)}MB)`);
+      return null;
+    }
+
+    log.info(`Audio downloaded for ${videoId}: ${(fileStat.size / 1024 / 1024).toFixed(1)}MB, sending to Groq Whisper`);
+
+    // Send to Groq Whisper API using native FormData (Node 20+)
+    const audioBuffer = await readFile(audioPath);
+    const blob = new Blob([new Uint8Array(audioBuffer)], { type: "audio/mpeg" });
+    const form = new FormData();
+    form.append("file", blob, `${videoId}.mp3`);
+    form.append("model", "whisper-large-v3");
+    form.append("response_format", "text");
+    form.append("language", "ko");
+
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/audio/transcriptions",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${groqKey}` },
+        body: form,
+        signal: AbortSignal.timeout(120_000),
+      },
+    );
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => "");
+      throw new Error(`Groq API ${response.status}: ${errBody}`);
+    }
+
+    const text = (await response.text()).trim();
+
+    if (text.length > 0) {
+      log.info(`Groq Whisper transcript for ${videoId}: ${text.length} chars`);
+      return { text, available: true };
+    }
+
+    return null;
+  } catch (error) {
+    log.warn(
+      `Groq Whisper fallback failed for ${videoId}:`,
+      error instanceof Error ? error.message : "Unknown error",
+    );
+    return null;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
  * Internal implementation: fetch transcript via yt-dlp CLI.
+ * Falls back to Groq Whisper STT if subtitle download fails.
  */
 async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
   const tempDir = await mkdtemp(join(tmpdir(), "yt-sub-"));
@@ -359,8 +438,11 @@ async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
     const vttFile = koFile ?? enFile ?? files.find(f => f.endsWith(".vtt"));
 
     if (!vttFile) {
-      log.info(`No subtitle files found for ${videoId}`);
-      return { text: "", available: false };
+      log.info(`No subtitle files found for ${videoId}, trying Groq Whisper fallback`);
+      // Clean up subtitle temp dir before Whisper attempt
+      await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+      const whisperResult = await fetchTranscriptViaWhisper(videoId);
+      return whisperResult ?? { text: "", available: false };
     }
 
     const vttContent = await readFile(join(tempDir, vttFile), "utf-8");

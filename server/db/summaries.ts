@@ -227,12 +227,8 @@ export async function deleteSummary(userId: number, summaryId: number) {
     and(eq(summaries.id, summaryId), eq(summaries.userId, userId))
   );
 
-  // 3. 자막 캐시 초기화 → 다음 요약 시 yt-dlp로 새로 fetch
-  if (target[0]) {
-    await db.update(videos)
-      .set({ transcript: null })
-      .where(eq(videos.videoId, target[0].videoId));
-  }
+  // 자막 캐시는 유지 — 삭제 후 재요약 시 기존 자막을 재활용
+  // (이전에 null로 초기화하면 yt-dlp 재fetch 실패 시 description fallback으로 품질 저하)
 }
 
 export async function getMonthlyUserSummaryCount(userId: number): Promise<number> {
