@@ -35,9 +35,16 @@ export async function initYtCookies(): Promise<void> {
   }
 }
 
-/** Returns yt-dlp cookie args if cookie file exists */
-function getYtCookieArgs(): string[] {
-  return existsSync(YT_COOKIES_PATH) ? ["--cookies", YT_COOKIES_PATH] : [];
+/** Returns common yt-dlp args: cookies + EJS runtime for YouTube challenge solving */
+function getYtDlpBaseArgs(): string[] {
+  const args: string[] = [];
+  if (existsSync(YT_COOKIES_PATH)) {
+    args.push("--cookies", YT_COOKIES_PATH);
+  }
+  // EJS: download external JavaScript challenge solver from GitHub
+  // --js-runtimes node: explicitly enable Node.js runtime (only deno is enabled by default)
+  args.push("--remote-components", "ejs:github", "--js-runtimes", "node");
+  return args;
 }
 
 /**
@@ -369,7 +376,7 @@ async function fetchTranscriptViaWhisper(videoId: string): Promise<VideoTranscri
   try {
     // Download audio only (low bitrate to stay under 25MB limit)
     await execFileAsync("yt-dlp", [
-      ...getYtCookieArgs(),
+      ...getYtDlpBaseArgs(),
       "-x",
       "--audio-format", "mp3",
       "--audio-quality", "5",
@@ -444,7 +451,7 @@ async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
     // (e.g. ko succeeds but en fails with 429). We must check for files regardless.
     try {
       await execFileAsync("yt-dlp", [
-        ...getYtCookieArgs(),
+        ...getYtDlpBaseArgs(),
         "--write-sub",
         "--write-auto-sub",
         "--sub-lang", "ko,en",
