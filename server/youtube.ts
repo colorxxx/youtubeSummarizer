@@ -1,6 +1,7 @@
 import axios from "axios";
 import { execFile } from "child_process";
-import { mkdtemp, readdir, readFile, rm, stat } from "fs/promises";
+import { existsSync } from "fs";
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
@@ -10,6 +11,34 @@ import { parseDuration } from "./videoUtils";
 const execFileAsync = promisify(execFile);
 
 const log = createLogger("YouTube");
+
+// --- YouTube cookies for yt-dlp bot detection bypass ---
+const YT_COOKIES_PATH = join(tmpdir(), "yt-cookies.txt");
+
+/**
+ * Initialize YouTube cookies file from base64-encoded environment variable.
+ * Call once at server startup.
+ */
+export async function initYtCookies(): Promise<void> {
+  const encoded = process.env.YT_COOKIES_BASE64;
+  if (!encoded) {
+    log.warn("YT_COOKIES_BASE64 not set — yt-dlp may be blocked by YouTube bot detection");
+    return;
+  }
+
+  try {
+    const decoded = Buffer.from(encoded, "base64").toString("utf-8");
+    await writeFile(YT_COOKIES_PATH, decoded, "utf-8");
+    log.info(`YouTube cookies written to ${YT_COOKIES_PATH} (${decoded.length} bytes)`);
+  } catch (error) {
+    log.error("Failed to initialize YouTube cookies:", error);
+  }
+}
+
+/** Returns yt-dlp cookie args if cookie file exists */
+function getYtCookieArgs(): string[] {
+  return existsSync(YT_COOKIES_PATH) ? ["--cookies", YT_COOKIES_PATH] : [];
+}
 
 /**
  * YouTube Data API v3 integration helper
@@ -340,6 +369,7 @@ async function fetchTranscriptViaWhisper(videoId: string): Promise<VideoTranscri
   try {
     // Download audio only (low bitrate to stay under 25MB limit)
     await execFileAsync("yt-dlp", [
+      ...getYtCookieArgs(),
       "-x",
       "--audio-format", "mp3",
       "--audio-quality", "5",
@@ -413,6 +443,7 @@ async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
     // (e.g. ko succeeds but en fails with 429). We must check for files regardless.
     try {
       await execFileAsync("yt-dlp", [
+        ...getYtCookieArgs(),
         "--write-sub",
         "--write-auto-sub",
         "--sub-lang", "ko,en",

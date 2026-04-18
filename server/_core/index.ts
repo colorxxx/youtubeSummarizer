@@ -13,7 +13,7 @@ import { serveStatic, setupVite } from "./vite";
 import { initializeCronJobs } from "../cronJobs";
 import { handleChatStream } from "../chatStream";
 import { createLogger } from "./logger";
-import { getVideoTranscript } from "../youtube";
+import { getVideoTranscript, initYtCookies } from "../youtube";
 
 const execFileAsync = promisify(execFile);
 
@@ -157,6 +157,9 @@ async function startServer() {
   if (port !== preferredPort) {
     log.warn(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
+
+  // Initialize YouTube cookies before server starts accepting requests
+  await initYtCookies();
 
   server.listen(port, "0.0.0.0", () => {
     log.info(`Server running on port ${port}`);
