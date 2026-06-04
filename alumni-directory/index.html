@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>대학원 동문·재학생 관리 명부</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --ink: #1c2536;
+      --muted: #6b7589;
+      --line: #e4e8f0;
+      --brand: #3b53d3;
+      --brand-ink: #ffffff;
+      --alumni: #0d8a5f;
+      --student: #c2620a;
+      --danger: #d23b3b;
+      --shadow: 0 1px 3px rgba(20, 30, 60, .08), 0 8px 24px rgba(20, 30, 60, .06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+        "Malgun Gothic", "맑은 고딕", Roboto, sans-serif;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+    header.top h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -.4px; }
+    header.top p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .stats { display: flex; gap: 12px; margin: 20px 0; flex-wrap: wrap; }
+    .stat {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 14px 18px; box-shadow: var(--shadow); min-width: 120px;
+    }
+    .stat .n { font-size: 26px; font-weight: 700; }
+    .stat .l { font-size: 12px; color: var(--muted); }
+
+    .toolbar {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px; box-shadow: var(--shadow); margin-bottom: 16px;
+    }
+    .toolbar .grow { flex: 1 1 220px; }
+    input, select, textarea {
+      font: inherit; color: var(--ink); background: #fff;
+      border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; width: 100%;
+    }
+    input:focus, select:focus, textarea:focus { outline: 2px solid #c8d2ff; border-color: var(--brand); }
+    select.compact, input.compact { width: auto; }
+
+    button {
+      font: inherit; cursor: pointer; border: 1px solid transparent; border-radius: 8px;
+      padding: 9px 14px; font-weight: 600; background: #eef1f8; color: var(--ink);
+    }
+    button:hover { filter: brightness(.97); }
+    button.primary { background: var(--brand); color: var(--brand-ink); }
+    button.ghost { background: #fff; border-color: var(--line); }
+    button.danger { background: #fff; border-color: #f1c4c4; color: var(--danger); }
+    button.sm { padding: 5px 10px; font-size: 13px; }
+
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th { background: #fafbfe; color: var(--muted); font-weight: 600; font-size: 12px; position: sticky; top: 0; }
+    tbody tr:hover { background: #f8faff; }
+    .table-scroll { overflow-x: auto; }
+
+    .tag { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .tag.alumni { background: #e3f5ec; color: var(--alumni); }
+    .tag.student { background: #fdeedd; color: var(--student); }
+    .muted { color: var(--muted); }
+    .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+    .err { background: #fdecec; color: #a32424; border: 1px solid #f3c7c7; padding: 12px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 14px; }
+
+    /* modal */
+    .overlay { position: fixed; inset: 0; background: rgba(20,30,60,.45); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+    .overlay.show { display: flex; }
+    .modal { background: #fff; border-radius: 14px; width: 100%; max-width: 640px; max-height: 90vh; overflow: auto; box-shadow: var(--shadow); }
+    .modal h2 { margin: 0; padding: 18px 22px; border-bottom: 1px solid var(--line); font-size: 18px; }
+    .modal .body { padding: 22px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid .full { grid-column: 1 / -1; }
+    label.fld { display: block; }
+    label.fld span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+    .modal .foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--line); }
+    @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <h1>대학원 동문·재학생 관리 명부</h1>
+      <p>졸업 동문과 재학생 정보를 한곳에서 관리합니다.</p>
+    </header>
+
+    <div class="stats">
+      <div class="stat"><div class="n" id="stat-total">0</div><div class="l">전체</div></div>
+      <div class="stat"><div class="n" id="stat-alumni">0</div><div class="l">졸업 동문</div></div>
+      <div class="stat"><div class="n" id="stat-student">0</div><div class="l">재학생</div></div>
+    </div>
+
+    <div id="error" class="err" style="display:none"></div>
+
+    <div class="toolbar">
+      <div class="grow"><input id="search" placeholder="이름 · 학번 · 학과 · 직장 검색…" /></div>
+      <select id="filter" class="compact">
+        <option value="all">전체 구분</option>
+        <option value="동문">졸업 동문</option>
+        <option value="재학생">재학생</option>
+      </select>
+      <button class="ghost" id="btn-export">CSV 내보내기</button>
+      <button class="primary" id="btn-add">+ 명부 추가</button>
+    </div>
+
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>이름</th><th>구분</th><th>학번</th><th>나이</th>
+              <th>학과/전공</th><th>현재 직장</th><th>입학</th><th>졸업</th>
+              <th>연락처</th><th>비고</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div id="empty" class="empty" style="display:none">등록된 명부가 없습니다. 우측 상단 <b>+ 명부 추가</b>로 시작하세요.</div>
+    </div>
+  </div>
+
+  <!-- 추가/수정 모달 -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h2 id="modal-title">명부 추가</h2>
+      <div class="body">
+        <input type="hidden" id="f-id" />
+        <div class="grid">
+          <label class="fld"><span>이름 *</span><input id="f-name" /></label>
+          <label class="fld"><span>구분 *</span>
+            <select id="f-member_type">
+              <option value="재학생">재학생</option>
+              <option value="동문">졸업 동문</option>
+            </select>
+          </label>
+          <label class="fld"><span>학번</span><input id="f-student_id" placeholder="예: 2021-30123" /></label>
+          <label class="fld"><span>나이</span><input id="f-age" type="number" min="0" /></label>
+          <label class="fld"><span>학과/전공</span><input id="f-department" /></label>
+          <label class="fld"><span>현재 직장 (직장인)</span><input id="f-company" placeholder="회사·기관 / 직책" /></label>
+          <label class="fld"><span>입학 연도</span><input id="f-admission_year" type="number" placeholder="예: 2021" /></label>
+          <label class="fld"><span>졸업 연도 (동문)</span><input id="f-graduation_year" type="number" placeholder="예: 2023" /></label>
+          <label class="fld"><span>이메일</span><input id="f-email" type="email" /></label>
+          <label class="fld"><span>전화번호</span><input id="f-phone" /></label>
+          <label class="fld full"><span>비고</span><textarea id="f-note" rows="2"></textarea></label>
+        </div>
+      </div>
+      <div class="foot">
+        <button class="ghost" id="btn-cancel">취소</button>
+        <button class="primary" id="btn-save">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const FIELDS = ['name','member_type','student_id','age','department','company','email','phone','admission_year','graduation_year','note'];
+    let data = [];
+
+    function showError(msg) {
+      const el = $('error');
+      if (!msg) { el.style.display = 'none'; return; }
+      el.textContent = '⚠ ' + msg; el.style.display = 'block';
+    }
+
+    async function load() {
+      try {
+        const res = await fetch('/api/members');
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || '불러오기 실패');
+        data = body; showError(null); render();
+      } catch (e) { showError(e.message); }
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    function render() {
+      const q = $('search').value.trim().toLowerCase();
+      const f = $('filter').value;
+      const alumni = data.filter((m) => m.member_type === '동문').length;
+      $('stat-total').textContent = data.length;
+      $('stat-alumni').textContent = alumni;
+      $('stat-student').textContent = data.length - alumni;
+
+      const list = data.filter((m) => {
+        if (f !== 'all' && m.member_type !== f) return false;
+        if (!q) return true;
+        return [m.name, m.student_id, m.department, m.company, m.email, m.phone]
+          .some((v) => String(v ?? '').toLowerCase().includes(q));
+      });
+
+      const tbody = $('rows');
+      tbody.innerHTML = list.map((m) => {
+        const tag = m.member_type === '동문'
+          ? '<span class="tag alumni">동문</span>'
+          : '<span class="tag student">재학생</span>';
+        const contact = [m.email, m.phone].filter(Boolean).map(escapeHtml).join('<br>') || '<span class="muted">—</span>';
+        const cell = (v) => v == null || v === '' ? '<span class="muted">—</span>' : escapeHtml(v);
+        return `<tr>
+          <td><b>${cell(m.name)}</b></td>
+          <td>${tag}</td>
+          <td>${cell(m.student_id)}</td>
+          <td>${cell(m.age)}</td>
+          <td>${cell(m.department)}</td>
+          <td>${cell(m.company)}</td>
+          <td>${cell(m.admission_year)}</td>
+          <td>${cell(m.graduation_year)}</td>
+          <td>${contact}</td>
+          <td>${cell(m.note)}</td>
+          <td style="text-align:right">
+            <button class="ghost sm" data-edit="${m.id}">수정</button>
+            <button class="danger sm" data-del="${m.id}">삭제</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+      $('empty').style.display = list.length ? 'none' : 'block';
+    }
+
+    function openModal(member) {
+      $('modal-title').textContent = member ? '명부 수정' : '명부 추가';
+      $('f-id').value = member ? member.id : '';
+      FIELDS.forEach((k) => { $('f-' + k).value = member && member[k] != null ? member[k] : ''; });
+      if (!member) $('f-member_type').value = '재학생';
+      $('overlay').classList.add('show');
+      $('f-name').focus();
+    }
+    function closeModal() { $('overlay').classList.remove('show'); }
+
+    async function save() {
+      const payload = {};
+      FIELDS.forEach((k) => { payload[k] = $('f-' + k).value; });
+      if (!payload.name.trim()) { alert('이름은 필수입니다.'); return; }
+      const id = $('f-id').value;
+      const btn = $('btn-save'); btn.disabled = true;
+      try {
+        const res = await fetch(id ? `/api/members/${id}` : '/api/members', {
+          method: id ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || '저장 실패');
+        closeModal(); await load();
+      } catch (e) { alert(e.message); } finally { btn.disabled = false; }
+    }
+
+    async function remove(id) {
+      if (!confirm('이 명부를 삭제할까요?')) return;
+      try {
+        const res = await fetch(`/api/members/${id}`, { method: 'DELETE' });
+        if (!res.ok) { const b = await res.json(); throw new Error(b.error || '삭제 실패'); }
+        await load();
+      } catch (e) { alert(e.message); }
+    }
+
+    function exportCsv() {
+      const cols = ['name','member_type','student_id','age','department','company','admission_year','graduation_year','email','phone','note'];
+      const head = ['이름','구분','학번','나이','학과/전공','현재직장','입학연도','졸업연도','이메일','전화','비고'];
+      const esc = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+      const lines = [head.map(esc).join(',')];
+      data.forEach((m) => lines.push(cols.map((c) => esc(m[c])).join(',')));
+      const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `명부_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    }
+
+    // 이벤트 바인딩
+    $('btn-add').onclick = () => openModal(null);
+    $('btn-cancel').onclick = closeModal;
+    $('btn-save').onclick = save;
+    $('btn-export').onclick = exportCsv;
+    $('search').oninput = render;
+    $('filter').onchange = render;
+    $('overlay').onclick = (e) => { if (e.target === $('overlay')) closeModal(); };
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+    $('rows').addEventListener('click', (e) => {
+      const ed = e.target.getAttribute('data-edit');
+      const dl = e.target.getAttribute('data-del');
+      if (ed) openModal(data.find((m) => String(m.id) === ed));
+      if (dl) remove(dl);
+    });
+
+    load();
+  </script>
+</body>
+</html>
