@@ -165,6 +165,7 @@ export const newsletters = mysqlTable("newsletters", {
   weekStart: timestamp("weekStart").notNull(),
   weekEnd: timestamp("weekEnd").notNull(),
   content: mediumtext("content").notNull(), // markdown
+  data: mediumtext("data"), // structured JSON (editorial + videos) for rich rendering
   videoCount: int("videoCount").default(0).notNull(),
   emailSentAt: timestamp("emailSentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

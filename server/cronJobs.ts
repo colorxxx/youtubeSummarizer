@@ -216,7 +216,7 @@ export function startDailyVideoCheckJob() {
  * at least one AI channel, and email it when the user has email enabled.
  */
 export async function runWeeklyNewsletterJob() {
-  const { generateWeeklyNewsletter, markdownToEmailHtml, AI_TREND_CHANNELS } = await import("./newsletter");
+  const { generateWeeklyNewsletter, newsletterEmailHtml, AI_TREND_CHANNELS } = await import("./newsletter");
   const { getUserSettings, markNewsletterEmailSent } = await import("./db");
   const { getDb } = await import("./db");
   const { sendEmail } = await import("./_core/notification");
@@ -250,7 +250,7 @@ export async function runWeeklyNewsletterJob() {
         continue;
       }
 
-      const html = markdownToEmailHtml(result.newsletter.content, result.newsletter.title);
+      const html = newsletterEmailHtml(result.newsletter);
       const sent = await sendEmail({
         to,
         subject: `[AI 동향 위클리] ${result.newsletter.title}`,

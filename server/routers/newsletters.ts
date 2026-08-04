@@ -44,7 +44,7 @@ export const newslettersRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const { getNewsletterById, getUserSettings, markNewsletterEmailSent } = await import("../db");
-      const { markdownToEmailHtml } = await import("../newsletter");
+      const { newsletterEmailHtml } = await import("../newsletter");
       const { sendEmail } = await import("../_core/notification");
 
       const newsletter = await getNewsletterById(ctx.user.id, input.id);
@@ -54,7 +54,7 @@ export const newslettersRouter = router({
       const to = settings?.email || ctx.user.email;
       if (!to) throw new Error("발송할 이메일 주소가 없습니다");
 
-      const html = markdownToEmailHtml(newsletter.content, newsletter.title);
+      const html = newsletterEmailHtml(newsletter);
       const sent = await sendEmail({
         to,
         subject: `[AI 동향 위클리] ${newsletter.title}`,

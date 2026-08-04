@@ -57,6 +57,13 @@
       "when": 1785807522418,
       "tag": "0007_purple_nehzno",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1785813432827,
+      "tag": "0008_neat_peter_quill",
+      "breakpoints": true
     }
   ]
 }
