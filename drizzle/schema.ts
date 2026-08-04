@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -153,3 +153,24 @@ export const playlistVideos = mysqlTable("playlistVideos", {
 
 export type PlaylistVideo = typeof playlistVideos.$inferSelect;
 export type InsertPlaylistVideo = typeof playlistVideos.$inferInsert;
+
+/**
+ * Weekly topic newsletters generated from video summaries
+ */
+export const newsletters = mysqlTable("newsletters", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  topic: varchar("topic", { length: 64 }).default("ai-trends").notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  weekStart: timestamp("weekStart").notNull(),
+  weekEnd: timestamp("weekEnd").notNull(),
+  content: mediumtext("content").notNull(), // markdown
+  videoCount: int("videoCount").default(0).notNull(),
+  emailSentAt: timestamp("emailSentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("newsletters_user_topic_week_idx").on(table.userId, table.topic, table.weekStart),
+]);
+
+export type Newsletter = typeof newsletters.$inferSelect;
+export type InsertNewsletter = typeof newsletters.$inferInsert;

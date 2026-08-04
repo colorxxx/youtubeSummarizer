@@ -11,6 +11,7 @@ import { backgroundTasksRouter } from "./backgroundTasks";
 import { settingsRouter } from "./settings";
 import { bookmarksRouter } from "./bookmarks";
 import { playlistsRouter } from "./playlists";
+import { newslettersRouter } from "./newsletters";
 
 export const appRouter = router({
   system: systemRouter,
@@ -26,6 +27,7 @@ export const appRouter = router({
   settings: settingsRouter,
   bookmarks: bookmarksRouter,
   playlists: playlistsRouter,
+  newsletters: newslettersRouter,
 });
 
 export type AppRouter = typeof appRouter;

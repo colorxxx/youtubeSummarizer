@@ -50,6 +50,13 @@
       "when": 1772284376713,
       "tag": "0006_fat_night_thrasher",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1785807522418,
+      "tag": "0007_purple_nehzno",
+      "breakpoints": true
     }
   ]
 }

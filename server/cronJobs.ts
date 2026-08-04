@@ -212,10 +212,83 @@ export function startDailyVideoCheckJob() {
 }
 
 /**
+ * Generate last week's AI trends newsletter for every user subscribed to
+ * at least one AI channel, and email it when the user has email enabled.
+ */
+export async function runWeeklyNewsletterJob() {
+  const { generateWeeklyNewsletter, markdownToEmailHtml, AI_TREND_CHANNELS } = await import("./newsletter");
+  const { getUserSettings, markNewsletterEmailSent } = await import("./db");
+  const { getDb } = await import("./db");
+  const { sendEmail } = await import("./_core/notification");
+  const { users } = await import("../drizzle/schema");
+  const { inArray, eq } = await import("drizzle-orm");
+
+  const allSubscriptions = await getAllSubscriptions();
+  const aiChannelIds = new Set(Object.keys(AI_TREND_CHANNELS));
+  const userIds = Array.from(
+    new Set(allSubscriptions.filter((s) => aiChannelIds.has(s.channelId)).map((s) => s.userId)),
+  );
+
+  cronLog.info(`Weekly newsletter: ${userIds.length} user(s) with AI channel subscriptions`);
+
+  const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  for (const userId of userIds) {
+    try {
+      const db = await getDb();
+      const [user] = db
+        ? await db.select().from(users).where(eq(users.id, userId)).limit(1)
+        : [];
+
+      const result = await generateWeeklyNewsletter(userId, user?.email ?? null, lastWeek);
+      if (result.status === "empty") continue;
+
+      const settings = await getUserSettings(userId);
+      const to = settings?.emailEnabled ? settings.email || user?.email : null;
+      if (!to) {
+        cronLog.info(`Newsletter generated for user ${userId}, email disabled or missing`);
+        continue;
+      }
+
+      const html = markdownToEmailHtml(result.newsletter.content, result.newsletter.title);
+      const sent = await sendEmail({
+        to,
+        subject: `[AI 동향 위클리] ${result.newsletter.title}`,
+        html,
+      });
+      if (sent) await markNewsletterEmailSent(result.newsletter.id);
+    } catch (error) {
+      cronLog.error(`Weekly newsletter failed for user ${userId}:`, error);
+    }
+  }
+}
+
+/**
+ * Start the weekly newsletter job.
+ * Runs every Monday at 8:00 AM KST, covering the previous week.
+ */
+export function startWeeklyNewsletterJob() {
+  cron.schedule("0 0 8 * * 1", async () => {
+    cronLog.info("Starting weekly newsletter job...");
+    try {
+      await runWeeklyNewsletterJob();
+      cronLog.info("Weekly newsletter job completed");
+    } catch (error) {
+      cronLog.error("Error in weekly newsletter job:", error);
+    }
+  }, {
+    timezone: "Asia/Seoul"
+  });
+
+  cronLog.info("Weekly newsletter job scheduled (Monday 8:00 AM KST)");
+}
+
+/**
  * Initialize all cron jobs
  */
 export function initializeCronJobs() {
   cronLog.info("Initializing cron jobs...");
   startDailyVideoCheckJob();
+  startWeeklyNewsletterJob();
   cronLog.info("All cron jobs initialized");
 }

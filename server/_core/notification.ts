@@ -69,6 +69,36 @@ function getTransporter(): nodemailer.Transporter | null {
 }
 
 /**
+ * Send an HTML email to an arbitrary recipient via Gmail SMTP.
+ * Returns false (without throwing) when SMTP is not configured or sending fails.
+ */
+export async function sendEmail(params: {
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<boolean> {
+  const smtp = getTransporter();
+  if (!smtp) {
+    log.info(`[Fallback] Email to ${params.to} skipped (SMTP not configured): ${params.subject}`);
+    return false;
+  }
+
+  try {
+    await smtp.sendMail({
+      from: ENV.premiumEmail,
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+    });
+    log.info(`Email sent to ${params.to}: ${params.subject}`);
+    return true;
+  } catch (error) {
+    log.error(`Failed to send email to ${params.to}:`, error);
+    return false;
+  }
+}
+
+/**
  * Send notification to the owner.
  * Uses Gmail SMTP if GMAIL_APP_PASSWORD is set, otherwise falls back to console.log.
  */

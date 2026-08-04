@@ -7,3 +7,4 @@ export { toggleBookmark, getUserBookmarks, getUserBookmarkedSummaries } from './
 export { createPlaylist, getUserPlaylists, updatePlaylist, deletePlaylist, addVideoToPlaylist, removeVideoFromPlaylist, getPlaylistVideos, getPlaylistsForVideo } from './playlists';
 export { getChatHistory, deleteChatHistory, saveChatMessage } from './chat';
 export { getUserSettings, upsertUserSettings } from './settings';
+export { saveNewsletter, getUserNewsletters, getNewsletterById, markNewsletterEmailSent, getWeeklySummariesForChannels, type WeeklySummaryRow } from './newsletters';

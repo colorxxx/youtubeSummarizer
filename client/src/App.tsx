@@ -12,6 +12,7 @@ import Summaries from "./pages/Summaries";
 import Bookmarks from "./pages/Bookmarks";
 import DirectSummary from "./pages/DirectSummary";
 import Playlists from "./pages/Playlists";
+import Newsletter from "./pages/Newsletter";
 import Settings from "./pages/Settings";
 import { BackgroundTasksBar } from "./components/BackgroundTasksBar";
 
@@ -47,6 +48,11 @@ function Router() {
       <Route path="/playlists">
         <DashboardLayout>
           <Playlists />
+        </DashboardLayout>
+      </Route>
+      <Route path="/newsletter">
+        <DashboardLayout>
+          <Newsletter />
         </DashboardLayout>
       </Route>
       <Route path="/settings">
