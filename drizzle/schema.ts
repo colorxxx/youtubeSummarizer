@@ -53,7 +53,7 @@ export const videos = mysqlTable("videos", {
   publishedAt: timestamp("publishedAt").notNull(),
   thumbnailUrl: text("thumbnailUrl"),
   duration: varchar("duration", { length: 50 }),
-  transcript: text("transcript"),
+  transcript: mediumtext("transcript"), // TEXT(64KB)로는 장문 한국어 자막이 잘려 저장 실패 → 16MB
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
