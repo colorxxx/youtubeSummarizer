@@ -1,5 +1,6 @@
 import axios from "axios";
 import { execFile } from "child_process";
+import ffmpegPath from "ffmpeg-static";
 import { existsSync } from "fs";
 import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "fs/promises";
 import { tmpdir } from "os";
@@ -90,6 +91,10 @@ function getYtDlpBaseArgs(): string[] {
   // EJS: download external JavaScript challenge solver from GitHub
   // --js-runtimes node: explicitly enable Node.js runtime (only deno is enabled by default)
   args.push("--remote-components", "ejs:github", "--js-runtimes", "node");
+  // Railway 런타임에 ffmpeg가 없음 — 없으면 Whisper 폴백의 -x(mp3 추출)가 항상 실패
+  if (ffmpegPath && existsSync(ffmpegPath)) {
+    args.push("--ffmpeg-location", ffmpegPath);
+  }
   return args;
 }
 
