@@ -32,6 +32,32 @@ function checkAndAlertCookieExpiry(errorMessage: string, videoId: string): void 
   }).catch(() => {});
 }
 
+// --- Consecutive transcript failure alert (covers non-cookie causes: runtime, format, IP block) ---
+const TRANSCRIPT_FAILURE_ALERT_THRESHOLD = 3;
+let consecutiveTranscriptFailures = 0;
+let lastFailureAlertTime = 0;
+let lastTranscriptError = "";
+
+function trackTranscriptResult(videoId: string, available: boolean): void {
+  if (available) {
+    consecutiveTranscriptFailures = 0;
+    return;
+  }
+
+  consecutiveTranscriptFailures++;
+  if (consecutiveTranscriptFailures < TRANSCRIPT_FAILURE_ALERT_THRESHOLD) return;
+
+  const now = Date.now();
+  if (now - lastFailureAlertTime < COOKIE_ALERT_COOLDOWN) return;
+  lastFailureAlertTime = now;
+
+  log.error(`Transcript pipeline failing: ${consecutiveTranscriptFailures} consecutive failures (last: ${videoId})`);
+  notifyOwner({
+    title: "🚨 자막 수집 연속 실패",
+    content: `자막 수집이 ${consecutiveTranscriptFailures}회 연속 실패했습니다 (Whisper 폴백 포함).\n\n마지막 영상: ${videoId}\n시각: ${new Date().toISOString()}\n\n마지막 에러:\n${lastTranscriptError.slice(0, 1500) || "(없음)"}\n\nRailway 로그를 확인해주세요.`,
+  }).catch(() => {});
+}
+
 // --- YouTube cookies for yt-dlp bot detection bypass ---
 const YT_COOKIES_PATH = join(tmpdir(), "yt-cookies.txt");
 
@@ -401,7 +427,6 @@ async function fetchTranscriptViaWhisper(videoId: string): Promise<VideoTranscri
       "--audio-format", "mp3",
       "--audio-quality", "5",
       "--no-check-formats",
-      "--no-warnings",
       "--quiet",
       "-o", audioPath,
       `https://www.youtube.com/watch?v=${videoId}`,
@@ -451,6 +476,7 @@ async function fetchTranscriptViaWhisper(videoId: string): Promise<VideoTranscri
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : "Unknown error";
     log.warn(`Groq Whisper fallback failed for ${videoId}:`, errMsg);
+    lastTranscriptError = errMsg;
     checkAndAlertCookieExpiry(errMsg, videoId);
     return null;
   } finally {
@@ -477,7 +503,6 @@ async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
         "--sub-format", "vtt",
         "--skip-download",
         "--no-check-formats",
-        "--no-warnings",
         "--quiet",
         "-o", join(tempDir, "%(id)s"),
         `https://www.youtube.com/watch?v=${videoId}`,
@@ -486,6 +511,7 @@ async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
       const errMsg = cmdError instanceof Error ? cmdError.message : "Unknown error";
       // yt-dlp exited non-zero — log but continue to check for partial downloads
       log.info(`yt-dlp exited with error for ${videoId} (checking for partial downloads):`, errMsg);
+      lastTranscriptError = errMsg;
       checkAndAlertCookieExpiry(errMsg, videoId);
     }
 
@@ -500,7 +526,9 @@ async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
       // Clean up subtitle temp dir before Whisper attempt
       await rm(tempDir, { recursive: true, force: true }).catch(() => {});
       const whisperResult = await fetchTranscriptViaWhisper(videoId);
-      return whisperResult ?? { text: "", available: false };
+      const result = whisperResult ?? { text: "", available: false };
+      trackTranscriptResult(videoId, result.available);
+      return result;
     }
 
     const vttContent = await readFile(join(tempDir, vttFile), "utf-8");
@@ -508,14 +536,16 @@ async function fetchTranscriptImpl(videoId: string): Promise<VideoTranscript> {
 
     if (text.length > 0) {
       log.info(`Transcript extracted for ${videoId}: ${text.length} chars (${vttFile})`);
+      trackTranscriptResult(videoId, true);
       return { text, available: true };
     }
+    trackTranscriptResult(videoId, false);
     return { text: "", available: false };
   } catch (error) {
-    log.info(
-      `Transcript not available for video ${videoId}:`,
-      error instanceof Error ? error.message : "Unknown error",
-    );
+    const errMsg = error instanceof Error ? error.message : "Unknown error";
+    log.info(`Transcript not available for video ${videoId}:`, errMsg);
+    lastTranscriptError = errMsg;
+    trackTranscriptResult(videoId, false);
     return { text: "", available: false };
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => {});

@@ -1,2 +1,7 @@
 # yt-dlp standalone binary is downloaded via postinstall script (scripts/install-yt-dlp.cjs)
 # aptPkgs and nixPkgs do not persist to Railway runtime container
+
+# Node 22+: yt-dlp EJS 챌린지 솔버가 Node 20을 지원하지 않음 (unsupported →
+# "n challenge solving failed" → 자막/포맷 추출 전멸). 2026-08 장애 원인.
+[variables]
+NIXPACKS_NODE_VERSION = "22"
