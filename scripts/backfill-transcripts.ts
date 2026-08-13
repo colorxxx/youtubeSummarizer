@@ -93,19 +93,38 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
             .where(eq(summaries.videoId, video.videoId));
 
           if (rows.length > 0) {
-            const result = await generateVideoSummary(
+            // qwen 콘텐츠 필터(DataInspectionFailed) 등으로 실패하면 deepseek 재시도.
+            // 그래도 실패하면 기존 요약을 보존 (실패 문구로 덮어쓰지 않음)
+            const isFailure = (r: { brief: string }) =>
+              r.brief.startsWith("Failed to generate") || r.brief.startsWith("No content available");
+            let result = await generateVideoSummary(
               video.videoId,
               video.title,
               video.description ?? "",
               video.duration ?? undefined,
+              "qwen",
             );
-            for (const row of rows) {
-              await db
-                .update(summaries)
-                .set({ summary: result.brief, detailedSummary: result.detailed })
-                .where(eq(summaries.id, row.id));
+            if (isFailure(result)) {
+              console.log(`${label}   qwen failed, retrying with deepseek`);
+              result = await generateVideoSummary(
+                video.videoId,
+                video.title,
+                video.description ?? "",
+                video.duration ?? undefined,
+                "deepseek",
+              );
             }
-            console.log(`${label}   summaries regenerated for ${rows.length} row(s)`);
+            if (isFailure(result)) {
+              console.log(`${label}   summary regeneration failed on both providers — keeping existing summary`);
+            } else {
+              for (const row of rows) {
+                await db
+                  .update(summaries)
+                  .set({ summary: result.brief, detailedSummary: result.detailed })
+                  .where(eq(summaries.id, row.id));
+              }
+              console.log(`${label}   summaries regenerated for ${rows.length} row(s)`);
+            }
           }
         }
       }
