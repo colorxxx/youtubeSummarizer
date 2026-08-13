@@ -8,7 +8,17 @@ export async function saveSummary(summary: InsertSummary) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.insert(summaries).values(summary);
+  // (userId, videoId) 유니크 — 동시 실행 레이스에서 중복 대신 최신 내용으로 갱신
+  await db
+    .insert(summaries)
+    .values(summary)
+    .onDuplicateKeyUpdate({
+      set: {
+        summary: summary.summary,
+        detailedSummary: summary.detailedSummary ?? null,
+        ...(summary.source ? { source: summary.source } : {}),
+      },
+    });
 }
 
 export async function getUserSummaryForVideo(userId: number, videoId: string) {

@@ -71,7 +71,10 @@ export const summaries = mysqlTable("summaries", {
   detailedSummary: text("detailedSummary"), // Detailed summary (length varies by video duration)
   source: mysqlEnum("source", ["subscription", "direct"]).default("subscription").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  // 크론·새로고침 동시 실행 시 같은 영상 요약이 중복 INSERT되던 문제 방지
+  uniqueIndex("summaries_user_video_idx").on(table.userId, table.videoId),
+]);
 
 export type Summary = typeof summaries.$inferSelect;
 export type InsertSummary = typeof summaries.$inferInsert;
