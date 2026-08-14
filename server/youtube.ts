@@ -39,8 +39,9 @@ let consecutiveTranscriptFailures = 0;
 let lastFailureAlertTime = 0;
 let lastTranscriptError = "";
 
-// 영상 자체가 사라진 경우 (비공개/삭제/계정정지) — 파이프라인 장애가 아니므로 알림 카운트 제외
-const VIDEO_GONE_PATTERN = /Video unavailable|This video is private|has been removed|account .* has been terminated/i;
+// 영상 자체에 접근 불가한 경우 (비공개/삭제/계정정지/멤버십 전용) — 파이프라인 장애가 아니므로 알림 카운트 제외
+const VIDEO_GONE_PATTERN =
+  /Video unavailable|This video is private|has been removed|account .* has been terminated|Join this channel/i;
 
 function trackTranscriptResult(videoId: string, available: boolean): void {
   if (available) {
